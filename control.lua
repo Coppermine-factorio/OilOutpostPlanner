@@ -65,6 +65,7 @@ local function FindPipePaths(args)
   local max_y = args.max_y
   local targets = args.targets
   local forbidden = args.forbidden
+  local min_underground_length = 3
 
   -- Sanity check args
   assert(min_x < max_x, "Invalid x range")
@@ -75,7 +76,7 @@ local function FindPipePaths(args)
   if #targets == 1
   then
     pipe = targets[1][1]
-    return { directions = {1}, pipes = {pipe} }
+    return { directions = {1}, pipes = { [Pos2Str(pipe)] = pipe } }
   end
 
   -- We spread out from each target in parallel until two collide, then join
@@ -89,6 +90,7 @@ local function FindPipePaths(args)
   local directions = {}
   local pipes = {}
   local directional_pipes = {}
+  local undergrounds = {}
 
   for i, target_set in pairs(targets)
   do
@@ -125,7 +127,7 @@ local function FindPipePaths(args)
               target_neighbourhoods[other_target],
               {pos=target, distance=1}
             )
-            table.insert(pipes, target)
+            pipes[Pos2Str(target)] = target
           end
           print("Merging targets.  directions["..i.."]="..j..", directions["..other_target.."]="..directions[other_target])
           break
@@ -293,14 +295,73 @@ local function FindPipePaths(args)
     do
       table.insert(t1_neighbourhood, { pos=pipe, distance=1 })
       nearest_target_to[Pos2Str(pipe)] = { target=t1 }
-      table.insert(pipes, pipe)
+      pipes[Pos2Str(pipe)] = pipe
+    end
+  end
+
+  -- Now we have placed all the pipes, we want to search for places where we
+  -- might be able to replace a sequence of pipes with an underground pipe.
+  for x = min_x, max_x
+  do
+    local start_of_run = nil
+
+    for y = min_y, max_y+1
+    do
+      local pos = { x = x, y = y }
+      local has_pipe = pipes[Pos2Str(pos)] ~= nil
+      if has_pipe
+      then
+        for _, offset_x in pairs({-1, 1})
+        do
+          offset_pos = { x = x + offset_x, y = y }
+          if pipes[Pos2Str(offset_pos)] ~= nil
+          then
+            has_pipe = false
+            break
+          end
+        end
+      end
+
+      -- At this point has_pipe tells us whether we have a pipe with no problem
+      -- neighbours
+      print("pipe conversion - has_pipe="..serpent.line(has_pipe)..", x="..x..", y="..y)
+      if has_pipe and start_of_run == nil
+      then
+        start_of_run = y
+      end
+
+      if not has_pipe and start_of_run ~= nil
+      then
+        length_of_run = y - start_of_run
+        assert(length_of_run ~= nil, "Bad length")
+        assert(min_underground_length ~= nil, "Bad min_underground_length")
+        print("Doing pipe conversion of length "..length_of_run)
+        if length_of_run >= min_underground_length
+        then
+          -- We have a range which we can change into an underground!
+          for run_y = start_of_run, y - 1
+          do
+            pipes[Pos2Str({x=x, y=run_y})] = nil
+          end
+
+          table.insert(
+            undergrounds,
+            { pos={ x=x, y=start_of_run }, direction = defines.direction.north }
+          )
+          table.insert(
+            undergrounds,
+            { pos={ x=x, y=y-1 }, direction = defines.direction.south }
+          )
+        end
+        start_of_run = nil
+      end
     end
   end
 
   return {
     directions = directions,
     pipes = pipes,
-    directional_pipes = directional_pipes
+    undergrounds = undergrounds,
   }
 end
 
@@ -397,6 +458,7 @@ local function OnPlayerSelectedArea(event)
 
   local directions = result.directions
   local pipes = result.pipes
+  local undergrounds = result.undergrounds
 
   print("Got directions "..serpent.line(directions))
   assert(#oil_patches == #directions, "Did not get one direction per patch\n"
@@ -431,6 +493,22 @@ local function OnPlayerSelectedArea(event)
       name="entity-ghost",
       inner_name="pipe",
       position=pipe_pos,
+      force=player.force,
+      player=player,
+    }
+    --player.print("position = " .. serpent.block(position))
+  end
+
+  for _, underground_info in pairs(undergrounds)
+  do
+    local pos = underground_info.pos
+    local direction = underground_info.direction
+
+    surface.create_entity{
+      name="entity-ghost",
+      inner_name="pipe-to-ground",
+      position=pos,
+      direction=direction,
       force=player.force,
       player=player,
     }
