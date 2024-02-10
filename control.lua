@@ -86,6 +86,10 @@ local function FindPipePaths(args)
   local target_neighbourhoods = {}
   local target_neighbourhood_index = {}
 
+  local directions = {}
+  local pipes = {}
+  local directional_pipes = {}
+
   for i, target_set in pairs(targets)
   do
     target_neighbourhoods[i] = {}
@@ -95,19 +99,44 @@ local function FindPipePaths(args)
     do
       if forbidden[target] == nil
       then
-        if nearest_target_to[target] ~= nil
+        target_str = Pos2Str(target)
+        if nearest_target_to[target_str] ~= nil
         then
-          error("Unimplemented")
+          -- Two pumpjacks share a square where a pipe could be attached.
+          -- Immediately pick the directions for both and merge their
+          -- target_neighbournoods accordinly
+          directions[i] = j
+          target_neighbourhoods[i] = nil
+          directional_pipes[target] = 0
+
+          other_target_info = nearest_target_to[target_str]
+          other_target = other_target_info.target
+          other_dir = other_target_info.direction
+          if other_dir ~= nil
+          then
+            directions[other_target] = other_dir
+            for _, n in pairs(target_neighbourhoods[other_target])
+            do
+              nearest_target_to[Pos2Str(n.pos)] = nil
+            end
+            nearest_target_to[target_str] = {target=other_target}
+            target_neighbourhoods[other_target] = {}
+            table.insert(
+              target_neighbourhoods[other_target],
+              {pos=target, distance=1}
+            )
+            table.insert(pipes, target)
+          end
+          print("Merging targets.  directions["..i.."]="..j..", directions["..other_target.."]="..directions[other_target])
+          break
         else
-          nearest_target_to[Pos2Str(target)] = {target=i, direction=j}
+          nearest_target_to[target_str] = {target=i, direction=j}
           table.insert(target_neighbourhoods[i], {pos=target, distance=1})
         end
       end
     end
   end
 
-  local directions = {}
-  local pipes = {}
   print(serpent.block({ min_x=min_x, max_x=max_x, min_y=min_y, max_y=max_y}))
   print("forbidden = "..serpent.block(forbidden))
 
@@ -232,6 +261,8 @@ local function FindPipePaths(args)
             local target = n.target
             assert(target ~= nil, "Expected target")
             directions[target] = direction
+            assert(directional_pipes[pos] == nil, "Two directions for pipe")
+            directional_pipes[pos] = direction
           else
             print("No direction in "..serpent.line(n))
           end
@@ -266,7 +297,11 @@ local function FindPipePaths(args)
     end
   end
 
-  return { directions = directions, pipes = pipes }
+  return {
+    directions = directions,
+    pipes = pipes,
+    directional_pipes = directional_pipes
+  }
 end
 
 local function OnPlayerSelectedArea(event)
@@ -363,6 +398,7 @@ local function OnPlayerSelectedArea(event)
   local directions = result.directions
   local pipes = result.pipes
 
+  print("Got directions "..serpent.line(directions))
   assert(#oil_patches == #directions, "Did not get one direction per patch\n"
   ..serpent.line(oil_patches).."\n"..serpent.line(directions))
 
