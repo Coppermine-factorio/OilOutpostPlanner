@@ -31,6 +31,33 @@ local function Str2Pos(str)
   return { x = x, y = y }
 end
 
+local function AddForbiddenPoints(args)
+  local min_x = args.min_x
+  local min_y = args.min_y
+  local max_x = args.max_x
+  local max_y = args.max_y
+  local surface = args.surface
+  local force = args.force
+  local forbidden = args.forbidden
+
+  for x = min_x,max_x
+  do
+    for y = min_y,max_y
+    do
+      pos = {x = x, y = y}
+      if not surface.can_place_entity{
+        name="pipe",
+        position=pos,
+        force=force,
+        build_check_type=defines.blueprint_ghost
+      }
+      then
+        forbidden[Pos2Str(pos)] = true
+      end
+    end
+  end
+end
+
 local function FindPipePaths(args)
   local min_x = args.min_x
   local min_y = args.min_y
@@ -306,6 +333,16 @@ local function OnPlayerSelectedArea(event)
     max_x = math.max(max_x, pos.x + 2)
     max_y = math.max(max_y, pos.y + 2)
   end
+
+  AddForbiddenPoints{
+    forbidden=forbidden_points,
+    force=player.force,
+    surface=surface,
+    min_x=min_x,
+    min_y=min_y,
+    max_x=max_x,
+    max_y=max_y
+  }
 
   result = FindPipePaths{
     min_x=min_x,
