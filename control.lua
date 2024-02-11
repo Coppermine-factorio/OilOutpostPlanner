@@ -114,7 +114,7 @@ local function FindPipePaths(args)
           -- target_neighbournoods accordinly
           directions[i] = j
           target_neighbourhoods[i] = nil
-          directional_pipes[target] = 0
+          directional_pipes[target_str] = 0
 
           other_target_info = nearest_target_to[target_str]
           other_target = other_target_info.target
@@ -268,8 +268,8 @@ local function FindPipePaths(args)
             local target = n.target
             assert(target ~= nil, "Expected target")
             directions[target] = direction
-            assert(directional_pipes[pos] == nil, "Two directions for pipe")
-            directional_pipes[pos] = direction
+            assert(directional_pipes[Pos2Str(pos)] == nil, "Two directions for pipe")
+            directional_pipes[Pos2Str(pos)] = direction
           else
             print("No direction in "..serpent.line(n))
           end
@@ -306,75 +306,120 @@ local function FindPipePaths(args)
 
   -- Now we have placed all the pipes, we want to search for places where we
   -- might be able to replace a sequence of pipes with an underground pipe.
-  for x = min_x, max_x
-  do
-    local start_of_run = nil
+  local function ReplacePipes(args)
+    local outer_name = args.outer
+    local min_outer = args.min_outer
+    local max_outer = args.max_outer
+    local inner_name = args.inner
+    local min_inner = args.min_inner
+    local max_inner = args.max_inner
+    local lower_direction = args.lower_direction
+    local upper_direction = args.upper_direction
+    local valid_directions = args.valid_directions
 
-    for y = min_y, max_y+1
+    for outer = min_outer, max_outer
     do
-      local pos = { x = x, y = y }
-      local has_pipe = pipes[Pos2Str(pos)] ~= nil
-      if has_pipe
-      then
-        for _, offset_x in pairs({-1, 1})
-        do
-          offset_pos = { x = x + offset_x, y = y }
-          if pipes[Pos2Str(offset_pos)] ~= nil
-          then
-            has_pipe = false
-            break
-          end
-        end
-      end
+      local start_of_run = nil
 
-      -- At this point has_pipe tells us whether we have a pipe with no problem
-      -- neighbours
-      print("pipe conversion - has_pipe="..serpent.line(has_pipe)..", x="..x..", y="..y)
-      if has_pipe and start_of_run == nil
-      then
-        start_of_run = y
-      end
-
-      if not has_pipe and start_of_run ~= nil
-      then
-        length_of_run = y - start_of_run
-        assert(length_of_run ~= nil, "Bad length")
-        assert(min_underground_distance ~= nil, "Bad min_underground_distance")
-        print("Doing pipe conversion of length "..length_of_run)
-        if length_of_run >= min_underground_distance
+      for inner = min_inner, max_inner+1
+      do
+        local pos = { [outer_name] = outer, [inner_name] = inner }
+        local existing_direction = directional_pipes[Pos2Str(pos)]
+        local has_pipe = (
+          pipes[Pos2Str(pos)] ~= nil and
+          (existing_direction == nil or valid_directions[existing_direction]))
+        if has_pipe
         then
-          -- We have a range which we can change into an underground!
-          for run_y = start_of_run, y - 1
+          for _, offset in pairs({-1, 1})
           do
-            pipes[Pos2Str({x=x, y=run_y})] = nil
-          end
-
-          num_sections_needed = math.ceil(
-            (length_of_run+1)/(max_underground_distance+1)
-          )
-          for i = 0,num_sections_needed-1
-          do
-            section_start = start_of_run + round(
-              length_of_run*i/num_sections_needed)
-            section_end = start_of_run + round(
-              length_of_run*(i+1)/num_sections_needed) - 1
-            table.insert(
-              undergrounds,
-              {
-                pos={ x=x, y=section_start },
-                direction=defines.direction.north
-              }
-            )
-            table.insert(
-              undergrounds,
-              { pos={ x=x, y=section_end }, direction=defines.direction.south }
-            )
+            offset_pos = { [outer_name] = outer, [inner_name] = inner }
+            offset_pos[outer_name] = offset_pos[outer_name] + offset
+            offset_pos_str = Pos2Str(offset_pos)
+            if (pipes[offset_pos_str] ~= nil or
+              undergrounds[offset_pos_str] ~= nil)
+            then
+              has_pipe = false
+              break
+            end
           end
         end
-        start_of_run = nil
+
+        -- At this point has_pipe tells us whether we have a pipe with no
+        -- problem neighbours
+        print("pipe conversion - has_pipe="..serpent.line(has_pipe)..", "..outer_name.."="..outer..", "..inner_name.."="..inner..", existing_direction="..serpent.line(existing_direction))
+        if has_pipe and start_of_run == nil
+        then
+          start_of_run = inner
+        end
+
+        if not has_pipe and start_of_run ~= nil
+        then
+          length_of_run = inner - start_of_run
+          assert(length_of_run ~= nil, "Bad length")
+          assert(min_underground_distance ~= nil, "Bad min_underground_distance")
+          print("Doing pipe conversion of length "..length_of_run)
+          if length_of_run >= min_underground_distance
+          then
+            -- We have a range which we can change into an underground (or
+            -- sequence of undergrounds)!
+            for run_inner = start_of_run, inner - 1
+            do
+              pipes[Pos2Str({[outer_name]=outer, [inner_name]=run_inner})] = nil
+            end
+
+            num_sections_needed = math.ceil(
+              (length_of_run+1)/(max_underground_distance+1)
+            )
+            for i = 0, num_sections_needed-1
+            do
+              section_start = start_of_run + round(
+                length_of_run*i/num_sections_needed)
+              section_end = start_of_run + round(
+                length_of_run*(i+1)/num_sections_needed) - 1
+              start_pos = { [outer_name]=outer, [inner_name]=section_start }
+              end_pos = { [outer_name]=outer, [inner_name]=section_end }
+              undergrounds[Pos2Str(start_pos)] = {
+                pos=start_pos, direction=lower_direction
+              }
+              undergrounds[Pos2Str(end_pos)] = {
+                pos=end_pos, direction=upper_direction
+              }
+            end
+          end
+          start_of_run = nil
+        end
       end
     end
   end
+
+  local valid_directions = {}
+  valid_directions[1] = true
+  valid_directions[3] = true
+  ReplacePipes{
+    outer="x",
+    min_outer=min_x,
+    max_outer=max_x,
+    inner="y",
+    min_inner=min_y,
+    max_inner=max_y,
+    valid_directions=valid_directions,
+    lower_direction=defines.direction.north,
+    upper_direction=defines.direction.south,
+  }
+  local valid_directions = {}
+  valid_directions[2] = true
+  valid_directions[4] = true
+  ReplacePipes{
+    outer="y",
+    min_outer=min_y,
+    max_outer=max_y,
+    inner="x",
+    min_inner=min_x,
+    max_inner=max_x,
+    valid_directions=valid_directions,
+    lower_direction=defines.direction.west,
+    upper_direction=defines.direction.east,
+  }
 
   return {
     directions = directions,
