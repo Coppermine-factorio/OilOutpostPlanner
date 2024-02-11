@@ -602,7 +602,6 @@ local function OnPlayerSelectedArea(event)
       position=pipe_pos,
       player=player,
     }
-    --player.print("position = " .. serpent.block(position))
   end
 
   for _, underground_info in pairs(undergrounds)
@@ -617,7 +616,6 @@ local function OnPlayerSelectedArea(event)
       direction=direction,
       player=player,
     }
-    --player.print("position = " .. serpent.block(position))
   end
 end
 
