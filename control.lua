@@ -5,6 +5,10 @@ local neighbours = {
   { x = 0, y = -1 },
 }
 
+local function round(x)
+  return math.floor(x+0.5)
+end
+
 local function MoreThanOne(t)
   -- Returns true if the given table has more than one value
   local count = 0
@@ -65,7 +69,8 @@ local function FindPipePaths(args)
   local max_y = args.max_y
   local targets = args.targets
   local forbidden = args.forbidden
-  local min_underground_length = 3
+  local min_underground_distance = args.min_underground_distance
+  local max_underground_distance = args.max_underground_distance
 
   -- Sanity check args
   assert(min_x < max_x, "Invalid x range")
@@ -334,9 +339,9 @@ local function FindPipePaths(args)
       then
         length_of_run = y - start_of_run
         assert(length_of_run ~= nil, "Bad length")
-        assert(min_underground_length ~= nil, "Bad min_underground_length")
+        assert(min_underground_distance ~= nil, "Bad min_underground_distance")
         print("Doing pipe conversion of length "..length_of_run)
-        if length_of_run >= min_underground_length
+        if length_of_run >= min_underground_distance
         then
           -- We have a range which we can change into an underground!
           for run_y = start_of_run, y - 1
@@ -344,14 +349,27 @@ local function FindPipePaths(args)
             pipes[Pos2Str({x=x, y=run_y})] = nil
           end
 
-          table.insert(
-            undergrounds,
-            { pos={ x=x, y=start_of_run }, direction = defines.direction.north }
+          num_sections_needed = math.ceil(
+            (length_of_run+1)/(max_underground_distance+1)
           )
-          table.insert(
-            undergrounds,
-            { pos={ x=x, y=y-1 }, direction = defines.direction.south }
-          )
+          for i = 0,num_sections_needed-1
+          do
+            section_start = start_of_run + round(
+              length_of_run*i/num_sections_needed)
+            section_end = start_of_run + round(
+              length_of_run*(i+1)/num_sections_needed) - 1
+            table.insert(
+              undergrounds,
+              {
+                pos={ x=x, y=section_start },
+                direction=defines.direction.north
+              }
+            )
+            table.insert(
+              undergrounds,
+              { pos={ x=x, y=section_end }, direction=defines.direction.south }
+            )
+          end
         end
         start_of_run = nil
       end
@@ -397,6 +415,14 @@ local function OnPlayerSelectedArea(event)
   end
 
   local surface = player.surface
+
+  local pipe_type = "pipe"
+  local underground_pipe_type = "pipe-to-ground"
+  local pumpjack_type = "pumpjack"
+  local min_underground_distance = 3
+
+  local max_underground_distance = game.entity_prototypes[underground_pipe_type].max_underground_distance
+
   local out_pipe_sets = {}
   local forbidden_points = {}
   local min_x = 1e10
@@ -447,6 +473,8 @@ local function OnPlayerSelectedArea(event)
     max_y=max_y,
     targets=out_pipe_sets,
     forbidden=forbidden_points,
+    min_underground_distance=min_underground_distance,
+    max_underground_distance=max_underground_distance,
     debug=player.print
   }
 
