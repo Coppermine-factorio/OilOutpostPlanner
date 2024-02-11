@@ -550,6 +550,20 @@ local function OnPlayerSelectedArea(event)
     local dir_index = directions[i]
     local direction = direction_array[dir_index]
     print("Using direction "..direction.." for patch at "..serpent.line(position))
+    -- Mark any existing entities for deconstruction and place a ghost pumpjack
+    -- there
+    existing = surface.find_entities_filtered{
+      area={
+        left_top = {x = position.x-1.5, y = position.y-1.5},
+        right_bottom = {x = position.x+1.5, y = position.y+1.5}
+      },
+      force=player.force
+    }
+    for _, entity in pairs(existing)
+    do
+      entity.order_deconstruction(player.force, player)
+    end
+
     surface.create_entity{
       name="entity-ghost",
       inner_name="pumpjack",
