@@ -525,7 +525,8 @@ local function OnPlayerSelectedArea(event)
     do
       for off_y=-1,1
       do
-        forbidden_points[Pos2Str({ x = pos.x + off_x, y = pos.y + off_y})] = true
+        local offset_pos = { x = pos.x + off_x, y = pos.y + off_y}
+        forbidden_points[Pos2Str(offset_pos)] = true
       end
     end
 
