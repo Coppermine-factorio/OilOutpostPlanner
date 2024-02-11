@@ -35,6 +35,35 @@ local function Str2Pos(str)
   return { x = x, y = y }
 end
 
+local function ForceGhostAt(args)
+  local surface = args.surface
+  local name = args.name
+  local position = args.position
+  local direction = args.direction
+  local player = args.player
+
+  new_entity = surface.create_entity{
+    name="entity-ghost",
+    inner_name=name,
+    position=position,
+    direction=direction,
+    force=player.force,
+    player=player,
+  }
+
+  existing = surface.find_entities_filtered{
+    area=new_entity.bounding_box,
+    collision_mask={"object-layer", "rail-layer", "transport-belt-layer"}
+  }
+  for _, entity in pairs(existing)
+  do
+    if entity ~= new_entity
+    then
+      entity.order_deconstruction(player.force, player)
+    end
+  end
+end
+
 local function AddForbiddenPoints(args)
   local min_x = args.min_x
   local min_y = args.min_y
@@ -53,7 +82,8 @@ local function AddForbiddenPoints(args)
         name="pipe",
         position=pos,
         force=force,
-        build_check_type=defines.blueprint_ghost
+        build_check_type=defines.build_check_type.blueprint_ghost,
+        forced=true,
       }
       then
         forbidden[Pos2Str(pos)] = true
@@ -550,37 +580,21 @@ local function OnPlayerSelectedArea(event)
     local dir_index = directions[i]
     local direction = direction_array[dir_index]
     print("Using direction "..direction.." for patch at "..serpent.line(position))
-    -- Mark any existing entities for deconstruction and place a ghost pumpjack
-    -- there
-    existing = surface.find_entities_filtered{
-      area={
-        left_top = {x = position.x-1.5, y = position.y-1.5},
-        right_bottom = {x = position.x+1.5, y = position.y+1.5}
-      },
-      force=player.force
-    }
-    for _, entity in pairs(existing)
-    do
-      entity.order_deconstruction(player.force, player)
-    end
-
-    surface.create_entity{
-      name="entity-ghost",
-      inner_name="pumpjack",
+    ForceGhostAt{
+      surface=surface,
+      name="pumpjack",
       position=position,
       direction=direction,
-      force=player.force,
       player=player,
     }
   end
 
   for _, pipe_pos in pairs(pipes)
   do
-    surface.create_entity{
-      name="entity-ghost",
-      inner_name="pipe",
+    ForceGhostAt{
+      surface=surface,
+      name="pipe",
       position=pipe_pos,
-      force=player.force,
       player=player,
     }
     --player.print("position = " .. serpent.block(position))
@@ -591,12 +605,11 @@ local function OnPlayerSelectedArea(event)
     local pos = underground_info.pos
     local direction = underground_info.direction
 
-    surface.create_entity{
-      name="entity-ghost",
-      inner_name="pipe-to-ground",
+    ForceGhostAt{
+      surface=surface,
+      name="pipe-to-ground",
       position=pos,
       direction=direction,
-      force=player.force,
       player=player,
     }
     --player.print("position = " .. serpent.block(position))
