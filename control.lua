@@ -111,7 +111,11 @@ local function FindPipePaths(args)
   if #targets == 1
   then
     pipe = targets[1][1]
-    return { directions = {1}, pipes = { [Pos2Str(pipe)] = pipe } }
+    return {
+      directions = {1},
+      pipes = { [Pos2Str(pipe)] = pipe },
+      undergrounds = {},
+    }
   end
 
   -- We spread out from each target in parallel until two collide, then join
