@@ -462,6 +462,87 @@ local function FindPipePaths(args)
   }
 end
 
+local function FindPowerPolePositions(args)
+  local min_x = args.min_x
+  local min_y = args.min_y
+  local max_x = args.max_x
+  local max_y = args.max_y
+  local targets = args.targets
+  local forbidden = args.forbidden
+  local target_to_pole_max = args.target_to_pole_max
+  local wire_reach = args.wire_reach
+
+  local wire_position_info = {}
+
+  for target_idx, target in pairs(targets)
+  do
+    for x = -target_to_pole_max,target_to_pole_max
+    do
+      for y = -target_to_pole_max,target_to_pole_max
+      do
+        local pos = { x = target.x + x, y = target.y + y }
+        local pos_str = Pos2Str(pos)
+        if not forbidden[pos_str]
+        then
+          if wire_position_info[pos_str] == nil
+          then
+            wire_position_info[pos_str] = { pos=pos, targets={} }
+          end
+          table.insert(wire_position_info[pos_str].targets, target_idx)
+        end
+      end
+    end
+  end
+
+  poles = {}
+  done_targets = {}
+
+  local function NumNotDone(target_idxs)
+    local count = 0
+    for i, target_idx in pairs(target_idxs)
+    do
+      if done_targets[target_idx]
+      then
+        target_idxs[i] = nil
+      else
+        count = count + 1
+      end
+    end
+    return count
+  end
+
+  while true
+  do
+    local best_pos = nil
+    local best_count = 0
+
+    for _, info in pairs(wire_position_info)
+    do
+      local count = NumNotDone(info.targets)
+      if count > best_count
+      then
+        best_count = count
+        best_pos = info.pos
+      end
+    end
+
+    if best_count == 0
+    then
+      break
+    end
+
+    table.insert(poles, best_pos)
+    for _, target_idx in pairs(wire_position_info[Pos2Str(best_pos)].targets)
+    do
+      done_targets[target_idx] = true
+    end
+  end
+
+  return {
+    pole_poss = poles
+  }
+end
+
 local function OnPlayerSelectedArea(event)
   game.get_player(event.player_index).print("OnPlayerSelectedArea " .. event.item)
   if event.item ~= "Oil Outpost Generator"
@@ -500,7 +581,12 @@ local function OnPlayerSelectedArea(event)
   local pumpjack_type = "pumpjack"
   local min_underground_distance = 3
 
-  local max_underground_distance = game.entity_prototypes[underground_pipe_type].max_underground_distance
+  local underground_proto = game.entity_prototypes[underground_pipe_type]
+  local max_underground_distance = underground_proto.max_underground_distance
+
+  local pumpjack_proto = game.entity_prototypes[pumpjack_type]
+  local pumpjack_radius = pumpjack_proto.selection_box.right_bottom.x
+  local pumpjack_radius_int = math.floor(pumpjack_radius)
 
   local out_pipe_sets = {}
   local forbidden_points = {}
@@ -521,19 +607,19 @@ local function OnPlayerSelectedArea(event)
         { x = pos.x - 2, y = pos.y + 1 },
       }
     )
-    for off_x=-1,1
+    for off_x=-pumpjack_radius_int,pumpjack_radius_int
     do
-      for off_y=-1,1
+      for off_y=-pumpjack_radius_int,pumpjack_radius_int
       do
         local offset_pos = { x = pos.x + off_x, y = pos.y + off_y}
         forbidden_points[Pos2Str(offset_pos)] = true
       end
     end
 
-    min_x = math.min(min_x, pos.x - 2)
-    min_y = math.min(min_y, pos.y - 2)
-    max_x = math.max(max_x, pos.x + 2)
-    max_y = math.max(max_y, pos.y + 2)
+    min_x = math.min(min_x, pos.x - (pumpjack_radius_int+1))
+    min_y = math.min(min_y, pos.y - (pumpjack_radius_int+1))
+    max_x = math.max(max_x, pos.x + (pumpjack_radius_int+1))
+    max_y = math.max(max_y, pos.y + (pumpjack_radius_int+1))
   end
 
   AddForbiddenPoints{
@@ -546,7 +632,7 @@ local function OnPlayerSelectedArea(event)
     max_y=max_y
   }
 
-  result = FindPipePaths{
+  local result = FindPipePaths{
     min_x=min_x,
     min_y=min_y,
     max_x=max_x,
@@ -579,15 +665,18 @@ local function OnPlayerSelectedArea(event)
     defines.direction.west,
   }
 
+  pumpjack_positions = {}
+
   for i, patch in pairs(oil_patches)
   do
     local position = patch.position
+    table.insert(pumpjack_positions, position)
     local dir_index = directions[i]
     local direction = direction_array[dir_index]
     print("Using direction "..direction.." for patch at "..serpent.line(position))
     ForceGhostAt{
       surface=surface,
-      name="pumpjack",
+      name=pumpjack_type,
       position=position,
       direction=direction,
       player=player,
@@ -598,10 +687,11 @@ local function OnPlayerSelectedArea(event)
   do
     ForceGhostAt{
       surface=surface,
-      name="pipe",
+      name=pipe_type,
       position=pipe_pos,
       player=player,
     }
+    forbidden_points[Pos2Str(pipe_pos)] = true
   end
 
   for _, underground_info in pairs(undergrounds)
@@ -611,9 +701,41 @@ local function OnPlayerSelectedArea(event)
 
     ForceGhostAt{
       surface=surface,
-      name="pipe-to-ground",
+      name=underground_pipe_type,
       position=pos,
       direction=direction,
+      player=player,
+    }
+    forbidden_points[Pos2Str(pos)] = true
+  end
+
+  -- Now pumpjacks and pipes are complete, the final step is to add power poles
+  local power_pole_type = "small-electric-pole"
+  local power_pole_proto = game.entity_prototypes[power_pole_type]
+  local wire_reach = power_pole_proto.max_wire_distance
+  local target_to_pole_max = (
+    power_pole_proto.supply_area_distance + pumpjack_radius - 1)
+
+  result = FindPowerPolePositions{
+    min_x=min_x,
+    min_y=min_y,
+    max_x=max_x,
+    max_y=max_y,
+    targets=pumpjack_positions,
+    forbidden=forbidden_points,
+    target_to_pole_max=target_to_pole_max,
+    wire_reach=wire_reach,
+    debug=player.print
+  }
+
+  pole_poss = result.pole_poss
+
+  for _, pole_pos in pairs(pole_poss)
+  do
+    ForceGhostAt{
+      surface=surface,
+      name=power_pole_type,
+      position=pole_pos,
       player=player,
     }
   end
