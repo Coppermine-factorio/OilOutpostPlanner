@@ -499,80 +499,45 @@ local function FindPipePaths(args)
 end
 
 local function FindPowerPolePositions(args)
-  local min_x = args.min_x
-  local min_y = args.min_y
-  local max_x = args.max_x
-  local max_y = args.max_y
-  local targets = args.targets
+  local bounds = args.bounds
+  local entities = args.entities
   local forbidden = args.forbidden
-  local target_to_pole_max = args.target_to_pole_max
+  local entity_to_pole_max = args.entity_to_pole_max
   local wire_reach = args.wire_reach
 
-  local wire_position_info = {}
+  local targets = {}
 
-  for target_idx, target in pairs(targets)
+  for _, entity in pairs(entities)
   do
-    for x = -target_to_pole_max,target_to_pole_max
+    local subtargets = {}
+    for x = -entity_to_pole_max,entity_to_pole_max
     do
-      for y = -target_to_pole_max,target_to_pole_max
+      for y = -entity_to_pole_max,entity_to_pole_max
       do
-        local pos = { x = target.x + x, y = target.y + y }
-        local pos_str = Pos2Str(pos)
-        if not forbidden[pos_str]
-        then
-          if wire_position_info[pos_str] == nil
-          then
-            wire_position_info[pos_str] = { pos=pos, targets={} }
-          end
-          table.insert(wire_position_info[pos_str].targets, target_idx)
-        end
+        local pos = { x = entity.x + x, y = entity.y + y }
+        table.insert(subtargets, pos)
       end
     end
+    table.insert(targets, subtargets)
   end
 
-  poles = {}
-  done_targets = {}
-
-  local function NumNotDone(target_idxs)
-    local count = 0
-    for i, target_idx in pairs(target_idxs)
-    do
-      if done_targets[target_idx]
-      then
-        target_idxs[i] = nil
-      else
-        count = count + 1
-      end
-    end
-    return count
+  local function ChooseSubtarget(target_idx, subtarget_idx, pos)
+    -- Nothing to do
   end
 
-  while true
-  do
-    local best_pos = nil
-    local best_count = 0
+  tree_result = SolveSteinerTree{
+    targets=targets,
+    bounds=bounds,
+    forbidden=forbidden,
+    choose_subtarget=ChooseSubtarget,
+  }
 
-    for _, info in pairs(wire_position_info)
-    do
-      local count = NumNotDone(info.targets)
-      if count > best_count
-      then
-        best_count = count
-        best_pos = info.pos
-      end
-    end
-
-    if best_count == 0
-    then
-      break
-    end
-
-    table.insert(poles, best_pos)
-    for _, target_idx in pairs(wire_position_info[Pos2Str(best_pos)].targets)
-    do
-      done_targets[target_idx] = true
-    end
+  if tree_result == nil
+  then
+    return nil
   end
+
+  local poles = tree_result.paths
 
   return {
     pole_poss = poles
@@ -755,12 +720,18 @@ local function OnPlayerSelectedArea(event)
 
   result = FindPowerPolePositions{
     bounds=bounds,
-    targets=pumpjack_positions,
+    entities=pumpjack_positions,
     forbidden=forbidden_points,
-    target_to_pole_max=target_to_pole_max,
+    entity_to_pole_max=target_to_pole_max,
     wire_reach=wire_reach,
     debug=player.print
   }
+
+  if result == nil
+  then
+    player.print("Search for power pole layout failed")
+    return
+  end
 
   pole_poss = result.pole_poss
 
