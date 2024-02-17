@@ -126,46 +126,51 @@ local function SolveSteinerTree(args)
 
   local paths = {}
 
-  for i, target_set in pairs(targets)
+  for target_idx, target_set in pairs(targets)
   do
-    target_neighbourhoods[i] = {}
-    target_neighbourhood_index[i] = 1
+    target_neighbourhoods[target_idx] = {}
+    target_neighbourhood_index[target_idx] = 1
 
-    for j, target in pairs(target_set)
+    for subtarget_idx, subtarget in pairs(target_set)
     do
-      if forbidden[target] == nil
+      subtarget_str = Pos2Str(subtarget)
+      if not forbidden[subtarget_str]
       then
-        target_str = Pos2Str(target)
-        if nearest_target_to[target_str] ~= nil
+        if nearest_target_to[subtarget_str] ~= nil
         then
           -- Two targets share a square where a path could start.
           -- Immediately pick the subtarget for both and merge their
           -- target_neighbournoods accordinly
-          choose_subtarget(i, j, target)
-          target_neighbourhoods[i] = nil
+          choose_subtarget(target_idx, subtarget_idx, subtarget)
+          target_neighbourhoods[target_idx] = nil
 
-          other_target_info = nearest_target_to[target_str]
+          other_target_info = nearest_target_to[subtarget_str]
           other_target = other_target_info.target
           other_subtarget_idx = other_target_info.subtarget_idx
-          if other_dir ~= nil
+          if other_subtarget_idx ~= nil
           then
-            choose_subtarget(other_target, other_subtarget_idx, target)
+            choose_subtarget(other_target, other_subtarget_idx, subtarget)
             for _, n in pairs(target_neighbourhoods[other_target])
             do
               nearest_target_to[Pos2Str(n.pos)] = nil
             end
-            nearest_target_to[target_str] = {target=other_target}
+            nearest_target_to[subtarget_str] = {target=other_target}
             target_neighbourhoods[other_target] = {}
             table.insert(
               target_neighbourhoods[other_target],
-              {pos=target, distance=1}
+              {pos=subtarget, distance=1}
             )
-            paths[target_str] = target
+            paths[subtarget_str] = subtarget
           end
           break
         else
-          nearest_target_to[target_str] = {target=i, subtarget_idx=j}
-          table.insert(target_neighbourhoods[i], {pos=target, distance=1})
+          nearest_target_to[subtarget_str] = {
+            target=target_idx, subtarget_idx=subtarget_idx
+          }
+          table.insert(
+            target_neighbourhoods[target_idx],
+            {pos=subtarget, distance=1}
+          )
         end
       end
     end
@@ -185,6 +190,7 @@ local function SolveSteinerTree(args)
       do
         local idx = target_neighbourhood_index[i]
         local next_neighbour = target_neighbourhood[idx]
+        print("next_neighbour = "..serpent.line(next_neighbour))
         assert(next_neighbour.distance >= process_distance,
           "Values out of order")
 
@@ -319,7 +325,7 @@ local function SolveSteinerTree(args)
     target_neighbourhoods[t2] = nil
     target_neighbourhood_index[t2] = nil
 
-    t1_neighbourhood = target_neighbourhoods[t1]
+    local t1_neighbourhood = target_neighbourhoods[t1]
 
     for _, path_node in pairs(this_path)
     do
