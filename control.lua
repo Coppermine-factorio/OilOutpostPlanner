@@ -65,10 +65,10 @@ local function ForceGhostAt(args)
 end
 
 local function AddForbiddenPoints(args)
-  local min_x = args.min_x
-  local min_y = args.min_y
-  local max_x = args.max_x
-  local max_y = args.max_y
+  local min_x = args.bounds.min_x
+  local min_y = args.bounds.min_y
+  local max_x = args.bounds.max_x
+  local max_y = args.bounds.max_y
   local surface = args.surface
   local force = args.force
   local forbidden = args.forbidden
@@ -92,15 +92,14 @@ local function AddForbiddenPoints(args)
   end
 end
 
-local function FindPipePaths(args)
-  local min_x = args.min_x
-  local min_y = args.min_y
-  local max_x = args.max_x
-  local max_y = args.max_y
+local function SolveSteinerTree(args)
+  local min_x = args.bounds.min_x
+  local min_y = args.bounds.min_y
+  local max_x = args.bounds.max_x
+  local max_y = args.bounds.max_y
   local targets = args.targets
   local forbidden = args.forbidden
-  local min_underground_distance = args.min_underground_distance
-  local max_underground_distance = args.max_underground_distance
+  local choose_subtarget = args.choose_subtarget
 
   -- Sanity check args
   assert(min_x < max_x, "Invalid x range")
@@ -110,11 +109,10 @@ local function FindPipePaths(args)
   -- Special case for a single target
   if #targets == 1
   then
-    pipe = targets[1][1]
+    path_node = targets[1][1]
+    choose_subtarget(1, 1, path_node)
     return {
-      directions = {1},
-      pipes = { [Pos2Str(pipe)] = pipe },
-      undergrounds = {},
+      paths = { [Pos2Str(path_node)] = path_node },
     }
   end
 
@@ -126,10 +124,7 @@ local function FindPipePaths(args)
   local target_neighbourhoods = {}
   local target_neighbourhood_index = {}
 
-  local directions = {}
-  local pipes = {}
-  local directional_pipes = {}
-  local undergrounds = {}
+  local paths = {}
 
   for i, target_set in pairs(targets)
   do
@@ -143,19 +138,18 @@ local function FindPipePaths(args)
         target_str = Pos2Str(target)
         if nearest_target_to[target_str] ~= nil
         then
-          -- Two pumpjacks share a square where a pipe could be attached.
-          -- Immediately pick the directions for both and merge their
+          -- Two targets share a square where a path could start.
+          -- Immediately pick the subtarget for both and merge their
           -- target_neighbournoods accordinly
-          directions[i] = j
+          choose_subtarget(i, j, target)
           target_neighbourhoods[i] = nil
-          directional_pipes[target_str] = 0
 
           other_target_info = nearest_target_to[target_str]
           other_target = other_target_info.target
-          other_dir = other_target_info.direction
+          other_subtarget_idx = other_target_info.subtarget_idx
           if other_dir ~= nil
           then
-            directions[other_target] = other_dir
+            choose_subtarget(other_target, other_subtarget_idx, target)
             for _, n in pairs(target_neighbourhoods[other_target])
             do
               nearest_target_to[Pos2Str(n.pos)] = nil
@@ -166,12 +160,11 @@ local function FindPipePaths(args)
               target_neighbourhoods[other_target],
               {pos=target, distance=1}
             )
-            pipes[Pos2Str(target)] = target
+            paths[target_str] = target
           end
-          print("Merging targets.  directions["..i.."]="..j..", directions["..other_target.."]="..directions[other_target])
           break
         else
-          nearest_target_to[target_str] = {target=i, direction=j}
+          nearest_target_to[target_str] = {target=i, subtarget_idx=j}
           table.insert(target_neighbourhoods[i], {pos=target, distance=1})
         end
       end
@@ -270,23 +263,23 @@ local function FindPipePaths(args)
       process_distance = process_distance + 1
     end
 
-    -- We have found a pair of targets to be merged.  We construct the pipe
-    -- connecting them and set the direction of the pumpjack if applicable
+    -- We have found a pair of targets to be merged.  We construct the path
+    -- connecting them and set the subtarget
     local pos1 = merge_target.pos1
     local pos2 = merge_target.pos2
-    local these_pipes = {}
+    local this_path = {}
 
     for _, pos in pairs({pos1, pos2})
     do
       while true
       do
         assert(pos ~= nil, "Expected real pos")
-        print("Adding pipe at "..serpent.line(pos))
-        table.insert(these_pipes, pos)
+        print("Adding path node at "..serpent.line(pos))
+        table.insert(this_path, pos)
 
-        if #these_pipes > 500
+        if #this_path > 500
         then
-          print("these_pipes too large")
+          print("this_path too large")
           return nil
         end
 
@@ -296,16 +289,14 @@ local function FindPipePaths(args)
         then
           pos = next_pos
         else
-          local direction = n.direction
-          if direction ~= nil
+          local subtarget_idx = n.subtarget_idx
+          if subtarget_idx ~= nil
           then
             local target = n.target
             assert(target ~= nil, "Expected target")
-            directions[target] = direction
-            assert(directional_pipes[Pos2Str(pos)] == nil, "Two directions for pipe")
-            directional_pipes[Pos2Str(pos)] = direction
+            choose_subtarget(target, subtarget_idx, pos)
           else
-            print("No direction in "..serpent.line(n))
+            print("No subtarget_idx in "..serpent.line(n))
           end
           break
         end
@@ -330,13 +321,52 @@ local function FindPipePaths(args)
 
     t1_neighbourhood = target_neighbourhoods[t1]
 
-    for _, pipe in pairs(these_pipes)
+    for _, path_node in pairs(this_path)
     do
-      table.insert(t1_neighbourhood, { pos=pipe, distance=1 })
-      nearest_target_to[Pos2Str(pipe)] = { target=t1 }
-      pipes[Pos2Str(pipe)] = pipe
+      table.insert(t1_neighbourhood, { pos=path_node, distance=1 })
+      path_node_str = Pos2Str(path_node)
+      nearest_target_to[path_node_str] = { target=t1 }
+      paths[path_node_str] = path_node
     end
   end
+
+  return {
+    subtarget_choices=subtarget_choices,
+    paths=paths
+  }
+end
+
+local function FindPipePaths(args)
+  local bounds = args.bounds
+  local targets = args.targets
+  local forbidden = args.forbidden
+  local min_underground_distance = args.min_underground_distance
+  local max_underground_distance = args.max_underground_distance
+
+  local directions = {}
+  local directional_pipes = {}
+
+  local function ChooseSubtarget(target_idx, subtarget_idx, pos)
+    print("ChooseSubtarget("..target_idx..", "..subtarget_idx..", "..serpent.line(pos)..")")
+    directions[target_idx] = subtarget_idx
+    pos_str = Pos2Str(pos)
+    if directional_pipes[pos_str] == nil
+    then
+      directional_pipes[pos_str] = subtarget_idx
+    else
+      directional_pipes[pos_str] = 0
+    end
+  end
+
+  local tree_result = SolveSteinerTree{
+    targets=targets,
+    bounds=bounds,
+    forbidden=forbidden,
+    choose_subtarget=ChooseSubtarget,
+  }
+
+  local pipes = tree_result.paths
+  local undergrounds = {}
 
   -- Now we have placed all the pipes, we want to search for places where we
   -- might be able to replace a sequence of pipes with an underground pipe.
@@ -431,11 +461,11 @@ local function FindPipePaths(args)
   valid_directions[3] = true
   ReplacePipes{
     outer="x",
-    min_outer=min_x,
-    max_outer=max_x,
+    min_outer=bounds.min_x,
+    max_outer=bounds.max_x,
     inner="y",
-    min_inner=min_y,
-    max_inner=max_y,
+    min_inner=bounds.min_y,
+    max_inner=bounds.max_y,
     valid_directions=valid_directions,
     lower_direction=defines.direction.north,
     upper_direction=defines.direction.south,
@@ -445,11 +475,11 @@ local function FindPipePaths(args)
   valid_directions[4] = true
   ReplacePipes{
     outer="y",
-    min_outer=min_y,
-    max_outer=max_y,
+    min_outer=bounds.min_y,
+    max_outer=bounds.max_y,
     inner="x",
-    min_inner=min_x,
-    max_inner=max_x,
+    min_inner=bounds.min_x,
+    max_inner=bounds.max_x,
     valid_directions=valid_directions,
     lower_direction=defines.direction.west,
     upper_direction=defines.direction.east,
@@ -622,21 +652,22 @@ local function OnPlayerSelectedArea(event)
     max_y = math.max(max_y, pos.y + (pumpjack_radius_int+1))
   end
 
-  AddForbiddenPoints{
-    forbidden=forbidden_points,
-    force=player.force,
-    surface=surface,
-    min_x=min_x,
-    min_y=min_y,
-    max_x=max_x,
-    max_y=max_y
-  }
-
-  local result = FindPipePaths{
+  local bounds = {
     min_x=min_x,
     min_y=min_y,
     max_x=max_x,
     max_y=max_y,
+  }
+
+  AddForbiddenPoints{
+    forbidden=forbidden_points,
+    force=player.force,
+    surface=surface,
+    bounds=bounds,
+  }
+
+  local result = FindPipePaths{
+    bounds=bounds,
     targets=out_pipe_sets,
     forbidden=forbidden_points,
     min_underground_distance=min_underground_distance,
@@ -717,10 +748,7 @@ local function OnPlayerSelectedArea(event)
     power_pole_proto.supply_area_distance + pumpjack_radius - 1)
 
   result = FindPowerPolePositions{
-    min_x=min_x,
-    min_y=min_y,
-    max_x=max_x,
-    max_y=max_y,
+    bounds=bounds,
     targets=pumpjack_positions,
     forbidden=forbidden_points,
     target_to_pole_max=target_to_pole_max,
