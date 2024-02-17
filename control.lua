@@ -588,6 +588,7 @@ local function OnPlayerSelectedArea(event)
   local pumpjack_proto = game.entity_prototypes[pumpjack_type]
   local pumpjack_radius = pumpjack_proto.selection_box.right_bottom.x
   local pumpjack_radius_int = math.floor(pumpjack_radius)
+  local padding = pumpjack_radius_int + 2
 
   local out_pipe_sets = {}
   local forbidden_points = {}
@@ -617,10 +618,10 @@ local function OnPlayerSelectedArea(event)
       end
     end
 
-    min_x = math.min(min_x, pos.x - (pumpjack_radius_int+1))
-    min_y = math.min(min_y, pos.y - (pumpjack_radius_int+1))
-    max_x = math.max(max_x, pos.x + (pumpjack_radius_int+1))
-    max_y = math.max(max_y, pos.y + (pumpjack_radius_int+1))
+    min_x = math.min(min_x, pos.x - padding)
+    min_y = math.min(min_y, pos.y - padding)
+    max_x = math.max(max_x, pos.x + padding)
+    max_y = math.max(max_y, pos.y + padding)
   end
 
   local bounds = {
