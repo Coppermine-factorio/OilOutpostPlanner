@@ -184,8 +184,8 @@ local function SolveSteinerTree(args)
     end
   end
 
-  print(serpent.block({ min_x=min_x, max_x=max_x, min_y=min_y, max_y=max_y}))
-  print("forbidden = "..serpent.block(forbidden))
+  --print(serpent.block({ min_x=min_x, max_x=max_x, min_y=min_y, max_y=max_y}))
+  --print("forbidden = "..serpent.block(forbidden))
 
   local function FindMergeTarget()
     local process_distance = 1
@@ -196,33 +196,33 @@ local function SolveSteinerTree(args)
         local idx = target_neighbourhood_index[i]
         assert(idx ~= nil, "idx == nil")
         local next_neighbour = target_neighbourhood[idx]
-        print("next_neighbour = "..serpent.line(next_neighbour))
+        --print("next_neighbour = "..serpent.line(next_neighbour))
         assert(next_neighbour.distance >= process_distance,
           "Values out of order")
 
         while next_neighbour.distance == process_distance
         do
           local pos = next_neighbour.pos
-          print("idx = "..idx..", pos ("..pos.x..","..pos.y..")")
+          --print("idx = "..idx..", pos ("..pos.x..","..pos.y..")")
 
           for _, off in pairs(adjacency)
           do
             local candidate = { x = pos.x + off.x, y = pos.y + off.y }
             local candidate_s = Pos2Str(candidate)
             local valid = (
-              forbidden[candidate_s] == nil
-              and candidate.x >= min_x
+              candidate.x >= min_x
               and candidate.x <= max_x
               and candidate.y >= min_y
-              and candidate.y <= max_y)
-            print("Considering candidate ("..candidate.x..","..candidate.y.."), forbidden="..serpent.block(forbidden[candidate_s])..", valid="..serpent.block(valid))
+              and candidate.y <= max_y
+              and not forbidden[candidate_s])
+            --print("Considering candidate ("..candidate.x..","..candidate.y.."), forbidden="..serpent.block(forbidden[candidate_s])..", valid="..serpent.block(valid))
             if valid
             then
-              print("Candidate valid position")
+              --print("Candidate valid position")
               local nearest_target_info = nearest_target_to[candidate_s]
               if nearest_target_info == nil
               then
-                print("Candidate is a new position")
+                --print("Candidate is a new position")
                 nearest_target_to[candidate_s] = { target=i, next_pos=pos }
                 --print("nearest_target_to = "..serpent.block(nearest_target_to))
                 table.insert(target_neighbourhood, {pos=candidate, distance=process_distance+1})
@@ -230,7 +230,7 @@ local function SolveSteinerTree(args)
                 local other_target = nearest_target_info.target
                 if other_target == i
                 then
-                  print("Candidate a self reference")
+                  --print("Candidate a self reference")
                 else
                   return {
                     t1 = i,
@@ -247,7 +247,7 @@ local function SolveSteinerTree(args)
 
           if idx > 10000
           then
-            print("idx got too big")
+            args.debug("Search space too big")
             return nil
           end
 
@@ -255,9 +255,9 @@ local function SolveSteinerTree(args)
 
           if next_neighbour == nil
           then
-            print("next_neighbour was nil")
-            print("idx = "..idx)
-            print("#target_neighbourhood = "..#target_neighbourhood)
+            --print("next_neighbour was nil")
+            --print("idx = "..idx)
+            --print("#target_neighbourhood = "..#target_neighbourhood)
             return nil
           end
         end
@@ -277,7 +277,7 @@ local function SolveSteinerTree(args)
     then
       return nil
     end
-    print("Got a merge target "..serpent.line(merge_target))
+    --print("Got a merge target "..serpent.line(merge_target))
 
     -- We have found a pair of targets to be merged.  We construct the path
     -- connecting them and set the subtarget
@@ -290,12 +290,12 @@ local function SolveSteinerTree(args)
       while true
       do
         assert(pos ~= nil, "Expected real pos")
-        print("Adding path node at "..serpent.line(pos))
+        --print("Adding path node at "..serpent.line(pos))
         table.insert(this_path, pos)
 
         if #this_path > 500
         then
-          print("this_path too large")
+          args.debug("Generated path was too long")
           return nil
         end
 
@@ -312,7 +312,7 @@ local function SolveSteinerTree(args)
             assert(target ~= nil, "Expected target")
             choose_subtarget(target, subtarget_idx, pos)
           else
-            print("No subtarget_idx in "..serpent.line(n))
+            --print("No subtarget_idx in "..serpent.line(n))
           end
           break
         end
@@ -355,7 +355,7 @@ local function FindPipePaths(args)
   local directional_pipes = {}
 
   local function ChooseSubtarget(target_idx, subtarget_idx, pos)
-    print("ChooseSubtarget("..target_idx..", "..subtarget_idx..", "..serpent.line(pos)..")")
+    --print("ChooseSubtarget("..target_idx..", "..subtarget_idx..", "..serpent.line(pos)..")")
     directions[target_idx] = subtarget_idx
     pos_str = Pos2Str(pos)
     if directional_pipes[pos_str] == nil
@@ -419,7 +419,7 @@ local function FindPipePaths(args)
 
         -- At this point has_pipe tells us whether we have a pipe with no
         -- problem neighbours
-        print("pipe conversion - has_pipe="..serpent.line(has_pipe)..", "..outer_name.."="..outer..", "..inner_name.."="..inner..", existing_direction="..serpent.line(existing_direction))
+        --print("pipe conversion - has_pipe="..serpent.line(has_pipe)..", "..outer_name.."="..outer..", "..inner_name.."="..inner..", existing_direction="..serpent.line(existing_direction))
         if has_pipe and start_of_run == nil
         then
           start_of_run = inner
@@ -430,7 +430,7 @@ local function FindPipePaths(args)
           length_of_run = inner - start_of_run
           assert(length_of_run ~= nil, "Bad length")
           assert(min_underground_distance ~= nil, "Bad min_underground_distance")
-          print("Doing pipe conversion of length "..length_of_run)
+          --print("Doing pipe conversion of length "..length_of_run)
           if length_of_run >= min_underground_distance
           then
             -- We have a range which we can change into an underground (or
@@ -584,7 +584,7 @@ local function OnPlayerSelectedArea(event)
     then
       if (entity.name == "crude-oil")
       then
-        player.print("Found oil!")
+        --player.print("Found oil!")
         table.insert(oil_patches, entity)
       end
     end
@@ -678,7 +678,7 @@ local function OnPlayerSelectedArea(event)
   local pipes = result.pipes
   local undergrounds = result.undergrounds
 
-  print("Got directions "..serpent.line(directions))
+  --print("Got directions "..serpent.line(directions))
   assert(#oil_patches == #directions, "Did not get one direction per patch\n"
   ..serpent.line(oil_patches).."\n"..serpent.line(directions))
 
@@ -697,7 +697,7 @@ local function OnPlayerSelectedArea(event)
     table.insert(pumpjack_positions, position)
     local dir_index = directions[i]
     local direction = direction_array[dir_index]
-    print("Using direction "..direction.." for patch at "..serpent.line(position))
+    --print("Using direction "..direction.." for patch at "..serpent.line(position))
     ForceGhostAt{
       surface=surface,
       name=pumpjack_type,
