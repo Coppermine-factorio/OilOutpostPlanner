@@ -2,11 +2,11 @@ data:extend(
 {
   {
     type = "selection-tool",
-    name = "Oil Outpost Generator",
+    name = "oil-outpost-planner",
     icon = "__base__/graphics/icons/blueprint.png",
     flags = { "not-stackable", "spawnable" },
     subgroup = "tool",
-    order = "c[automated-construction]-b[oil-outpost-generator]",
+    order = "c[automated-construction]-b[oil-outpost-planner]",
     stack_size = 1,
     icon_size = 64, icon_mipmaps = 4,
     selection_color = { r = 0.5, g = 0.5, b = 0.5 },
@@ -18,10 +18,10 @@ data:extend(
   },
   {
     type = "shortcut",
-    name = "Oil Outpost Generator",
-    order = "o[oil-outpost-generator]",
+    name = "oil-outpost-planner",
+    order = "o[oil-outpost-planner]",
     action = "spawn-item",
-    item_to_spawn = "Oil Outpost Generator",
+    item_to_spawn = "oil-outpost-planner",
     toggleable = true,
     icon =
     {

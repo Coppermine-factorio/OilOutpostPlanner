@@ -1,11 +1,9 @@
 {
- "name": "OilOutpostGenerator",
+ "name": "OilOutpostPlanner",
  "version": "0.1.0",
  "factorio_version": "1.1",
- "title": "Oil Outpost Generator",
+ "title": "Oil Outpost Planner",
  "author": "Coppermine",
- "contact": "https://forums.factorio.com/viewtopic.php?f=92&t=33269",
- "homepage": "https://forums.factorio.com/viewtopic.php?f=92&t=33269",
  "description": "Autonatically blueprint pumpjacks and pipes for an oil outpost.",
  "dependencies": []
 }

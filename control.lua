@@ -567,7 +567,7 @@ end
 
 local function OnPlayerSelectedArea(event)
   game.get_player(event.player_index).print("OnPlayerSelectedArea " .. event.item)
-  if event.item ~= "Oil Outpost Generator"
+  if event.item ~= "oil-outpost-planner"
   then return end
 
   local player = event.player_index ~= nil and game.get_player(event.player_index) or nil
@@ -773,7 +773,7 @@ local function OnPlayerDroppedItem(event)
   if entity
   and entity.valid
   and entity.stack
-  and entity.stack.name == "Oil Outpost Generator"
+  and entity.stack.name == "oil-outpost-planner"
   then
     entity.stack.clear()
   end
