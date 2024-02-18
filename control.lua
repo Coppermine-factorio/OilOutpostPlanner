@@ -768,16 +768,4 @@ local function OnPlayerSelectedArea(event)
   end
 end
 
-local function OnPlayerDroppedItem(event)
-  local entity = event.entity
-  if entity
-  and entity.valid
-  and entity.stack
-  and entity.stack.name == "oil-outpost-planner"
-  then
-    entity.stack.clear()
-  end
-end
-
 script.on_event(defines.events.on_player_selected_area, OnPlayerSelectedArea)
-script.on_event(defines.events.on_player_dropped_item, OnPlayerDroppedItem)
