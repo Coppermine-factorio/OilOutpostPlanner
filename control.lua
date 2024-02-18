@@ -12,6 +12,7 @@ local function get_player_config(player)
     global.players[player_index] = {
       choices = {
         pole_choice = "medium-electric-pole",
+        ["basic-fluid_pumpjack_choice"] = "pumpjack",
       },
 
       gui = {

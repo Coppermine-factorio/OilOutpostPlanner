@@ -589,16 +589,18 @@ end
 
 function layout.Plan(player, player_data, entities)
   local oil_patches = {}
+  local resource_category = nil
 
   for _, entity in ipairs(entities)
   do
     if entity.valid
     and entity.type == "resource"
     then
-      if (entity.name == "crude-oil")
+      if entity.name == "crude-oil"
       then
         --player.print("Found oil!")
         table.insert(oil_patches, entity)
+        resource_category = entity.prototype.resource_category
       end
     end
   end
@@ -609,11 +611,14 @@ function layout.Plan(player, player_data, entities)
     return
   end
 
+  assert(resource_category ~= nil, "Failed to get category")
+
   local surface = player.surface
 
   local pipe_type = "pipe"
   local underground_pipe_type = "pipe-to-ground"
-  local pumpjack_type = "pumpjack"
+  local pumpjack_type = player_data.choices[
+    resource_category.."_pumpjack_choice"]
   local min_underground_distance = 3
 
   local underground_proto = game.entity_prototypes[underground_pipe_type]

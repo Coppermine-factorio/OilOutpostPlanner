@@ -38,6 +38,8 @@ local function create_setting_selector(
   root.clear()
   local selected = player_data.choices[action.."_choice"]
 
+  table.sort(values, function(l, r) return l.order < r.order end)
+
   for _, value in ipairs(values) do
     local action_type_override = value.action or action_type
     local toggle_value = (
@@ -121,12 +123,116 @@ function gui.create_interface(player, player_data)
   --  tags={oop_advanced_settings=true},
   --}
 
-  --do -- Miner selection
-  --  local table_root, section = create_setting_section(player_data, frame, "miner")
-  --end
+  -- Pumpjack selection
+  local resource_protos = game.get_filtered_entity_prototypes{
+    {filter="type", type="resource"}
+  }
+  entities_by_resource_type = {}
+  for _, resource_proto in pairs(resource_protos)
+  do
+    local category = resource_proto.resource_category
+    if not category
+    then
+      goto skip_resource
+    end
 
-  do -- Electric pole selection
-    create_setting_section(player_data, frame, "pole")
+    if entities_by_resource_type[category] ~= nil
+    then
+      goto skip_resource
+    end
+
+    local mineable_properties = resource_proto.mineable_properties
+    if mineable_properties.products then
+      for _, product in ipairs(mineable_properties.products) do
+        if product.type == "fluid" then
+          entities_by_resource_type[category] = resource_proto.name
+          break
+        end
+      end
+    end
+
+    ::skip_resource::
+  end
+
+  for resource_type, entity in pairs(entities_by_resource_type)
+  do
+    create_setting_section(player_data, frame, resource_type.."_pumpjack")
+  end
+
+  -- Electric pole selection
+  create_setting_section(player_data, frame, "pole")
+end
+
+local function update_pumpjack_selection(player_data)
+  local player_choices = player_data.choices
+
+  local values_by_resource = {}
+  local existing_choice_is_valid_by_resource = {}
+  local all_miners = game.get_filtered_entity_prototypes{
+    {filter="type", type="mining-drill"}
+  }
+
+  for _, miner_proto in pairs(all_miners) do
+    if blacklist[miner_proto.name] then goto skip_miner end
+    local resources = miner_proto.resource_categories
+    local resource
+    for r, _ in pairs(resources)
+    do
+      if resource ~= nil then goto skip_miner end
+      resource = r
+    end
+
+    local output_fluidboxes = {}
+    for _, fluidbox in pairs(miner_proto.fluidbox_prototypes)
+    do
+      if fluidbox.production_type == "output"
+      then
+        table.insert(output_fluidboxes, fluidbox)
+      end
+    end
+    if #output_fluidboxes ~= 1 then goto skip_miner end
+
+    local choice_key = resource.."_pumpjack_choice"
+
+    if values_by_resource[resource] == nil
+    then
+      values_by_resource[resource] = {}
+    end
+
+    table.insert(values_by_resource[resource], {
+      value=miner_proto.name,
+      tooltip=miner_proto.localised_name,
+      icon=("entity/"..miner_proto.name),
+      order=miner_proto.order,
+    })
+    if miner_proto.name == player_choices[choice_key] then
+      existing_choice_is_valid_by_resource[resource] = true
+    end
+
+    ::skip_miner::
+  end
+
+  for resource, values in pairs(values_by_resource)
+  do
+    local existing_choice_is_valid =
+      existing_choice_is_valid_by_resource[resource]
+    if not existing_choice_is_valid and #values > 0 then
+      player_choices[choice_key] = values[1].value
+    elseif #values == 0 then
+      player_choices[choice_key] = "none"
+      table.insert(values, {
+        value="none",
+        tooltip={"oil-outpost-planner.msg_no_valid_pumpjacks"},
+        icon="oop_no_entity",
+        order="",
+      })
+    end
+
+    local gui_key = resource.."_pumpjack"
+    local table_root = player_data.gui.tables[gui_key]
+    create_setting_selector(
+      player_data, table_root, "oop_action", gui_key, values
+    )
   end
 end
 
@@ -178,7 +284,7 @@ local function update_pole_selection(player_data)
 end
 
 local function update_selections(player, player_data)
-  --update_miner_selection(player_data)
+  update_pumpjack_selection(player_data)
   update_pole_selection(player_data)
 end
 
