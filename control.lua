@@ -602,7 +602,7 @@ local function OnPlayerSelectedArea(event)
 
   if #oil_patches == 0
   then
-    player.print("No oil patches found")
+    player.print({"oil-outpost-planner.msg_no_patches"})
     return
   end
 
@@ -680,7 +680,7 @@ local function OnPlayerSelectedArea(event)
 
   if result == nil
   then
-    player.print("Search for pipe layout failed")
+    player.print({"oil-outpost-planner.msg_pipe_layout_failed"})
     return
   end
 
@@ -761,7 +761,7 @@ local function OnPlayerSelectedArea(event)
 
   if result == nil
   then
-    player.print("Search for power pole layout failed")
+    player.print({"oil-outpost-planner.msg_pole_layout_failed"})
     return
   end
 
