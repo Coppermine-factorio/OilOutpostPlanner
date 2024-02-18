@@ -1,4 +1,4 @@
-local neighbours = {
+local orthogonal_neighbours = {
   { x = -1, y = 0 },
   { x = 0, y = 1 },
   { x = 1, y = 0 },
@@ -98,6 +98,7 @@ local function SolveSteinerTree(args)
   local max_x = args.bounds.max_x
   local max_y = args.bounds.max_y
   local targets = args.targets
+  local adjacency = args.adjacency
   local forbidden = args.forbidden
   local choose_subtarget = args.choose_subtarget
 
@@ -200,7 +201,7 @@ local function SolveSteinerTree(args)
           local pos = next_neighbour.pos
           print("idx = "..idx..", pos ("..pos.x..","..pos.y..")")
 
-          for _, off in pairs(neighbours)
+          for _, off in pairs(adjacency)
           do
             local candidate = { x = pos.x + off.x, y = pos.y + off.y }
             local candidate_s = Pos2Str(candidate)
@@ -366,6 +367,7 @@ local function FindPipePaths(args)
 
   local tree_result = SolveSteinerTree{
     targets=targets,
+    adjacency=orthogonal_neighbours,
     bounds=bounds,
     forbidden=forbidden,
     choose_subtarget=ChooseSubtarget,
@@ -521,12 +523,30 @@ local function FindPowerPolePositions(args)
     table.insert(targets, subtargets)
   end
 
+  local squared_wire_reach = wire_reach * wire_reach
+  local wire_reach_int = math.floor(wire_reach)
+  local pole_adjacency = {}
+
+  for x = -wire_reach_int,wire_reach_int
+  do
+    for y = -wire_reach_int,wire_reach_int
+    do
+      local square_distance = x * x + y * y
+      if square_distance <= squared_wire_reach
+      then
+        local pos = { x = x, y = y }
+        table.insert(pole_adjacency, pos)
+      end
+    end
+  end
+
   local function ChooseSubtarget(target_idx, subtarget_idx, pos)
     -- Nothing to do
   end
 
   tree_result = SolveSteinerTree{
     targets=targets,
+    adjacency=pole_adjacency,
     bounds=bounds,
     forbidden=forbidden,
     choose_subtarget=ChooseSubtarget,
