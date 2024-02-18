@@ -195,13 +195,28 @@ local function SolveSteinerTree(args)
       do
         local idx = target_neighbourhood_index[i]
         assert(idx ~= nil, "idx == nil")
-        local next_neighbour = target_neighbourhood[idx]
-        --print("next_neighbour = "..serpent.line(next_neighbour))
-        assert(next_neighbour.distance >= process_distance,
-          "Values out of order")
 
-        while next_neighbour.distance == process_distance
+        while true
         do
+          local next_neighbour = target_neighbourhood[idx]
+
+          if next_neighbour == nil
+          then
+            --print("next_neighbour was nil")
+            --print("idx = "..idx)
+            --print("#target_neighbourhood = "..#target_neighbourhood)
+            return nil
+          end
+
+          --print("next_neighbour = "..serpent.line(next_neighbour))
+          assert(next_neighbour.distance >= process_distance,
+            "Values out of order")
+
+          if next_neighbour.distance > process_distance
+          then
+            break
+          end
+
           local pos = next_neighbour.pos
           --print("idx = "..idx..", pos ("..pos.x..","..pos.y..")")
 
@@ -248,16 +263,6 @@ local function SolveSteinerTree(args)
           if idx > 10000
           then
             args.debug("Search space too big")
-            return nil
-          end
-
-          next_neighbour = target_neighbourhood[idx]
-
-          if next_neighbour == nil
-          then
-            --print("next_neighbour was nil")
-            --print("idx = "..idx)
-            --print("#target_neighbourhood = "..#target_neighbourhood)
             return nil
           end
         end
