@@ -59,5 +59,13 @@ data:extend(
       scale = 1,
       flags = { "icon" }
     }
-  }
+  },
+  {
+    type = "sprite",
+    name = "oop_no_entity",
+    filename = graphics.."no-entity.png",
+    size = 64,
+    mipmap_count = 3,
+    flags = { "icon" },
+  },
 })

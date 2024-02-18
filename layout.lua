@@ -577,7 +577,7 @@ local function FindPowerPolePositions(args)
   }
 end
 
-function layout.Plan(player, entities)
+function layout.Plan(player, player_data, entities)
   local oil_patches = {}
 
   for _, entity in ipairs(entities)
@@ -737,7 +737,13 @@ function layout.Plan(player, entities)
   end
 
   -- Now pumpjacks and pipes are complete, the final step is to add power poles
-  local power_pole_type = "small-electric-pole"
+  local power_pole_type = player_data.choices.pole_choice
+
+  if power_pole_type == "none"
+  then
+    return
+  end
+
   local power_pole_proto = game.entity_prototypes[power_pole_type]
   local wire_reach = power_pole_proto.max_wire_distance
   local target_to_pole_max = (

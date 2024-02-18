@@ -34,10 +34,23 @@ local function OnPlayerSelectedArea(event)
   or not player.valid
   then return end
 
-  layout.Plan(player, event.entities)
+  local player_data = get_player_config(player)
+  if not player_data then return end
+
+  layout.Plan(player, player_data, event.entities)
 end
 
 script.on_event(defines.events.on_player_selected_area, OnPlayerSelectedArea)
+
+script.on_event(defines.events.on_gui_click, function(event)
+  local player = game.get_player(event.player_index)
+  if not player then return end
+  local player_data = get_player_config(player)
+  if not player_data then return end
+
+  gui.on_click(event, player, player_data)
+end
+)
 
 local function cursor_stack_check(e)
   local player = game.get_player(e.player_index)
