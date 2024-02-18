@@ -520,18 +520,28 @@ local function FindPowerPolePositions(args)
   local entity_to_pole_max = args.entity_to_pole_max
   local wire_reach = args.wire_reach
 
+  local subtarget_offsets = {}
+  for x = -entity_to_pole_max,entity_to_pole_max
+  do
+    for y = -entity_to_pole_max,entity_to_pole_max
+    do
+      local pos = { x = x, y = y }
+      table.insert(subtarget_offsets, pos)
+    end
+  end
+  table.sort(subtarget_offsets, function(l, r)
+    return l.x * l.x + l.y * l.y < r.x * r.x + r.y * r.y
+  end)
+
   local targets = {}
 
   for _, entity in pairs(entities)
   do
     local subtargets = {}
-    for x = -entity_to_pole_max,entity_to_pole_max
+    for _, offset in pairs(subtarget_offsets)
     do
-      for y = -entity_to_pole_max,entity_to_pole_max
-      do
-        local pos = { x = entity.x + x, y = entity.y + y }
-        table.insert(subtargets, pos)
-      end
+      local pos = { x = entity.x + offset.x, y = entity.y + offset.y }
+      table.insert(subtargets, pos)
     end
     table.insert(targets, subtargets)
   end
