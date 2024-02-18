@@ -379,6 +379,11 @@ local function FindPipePaths(args)
     choose_subtarget=ChooseSubtarget,
   }
 
+  if tree_result == nil
+  then
+    return nil
+  end
+
   local pipes = tree_result.paths
   local undergrounds = {}
 
