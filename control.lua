@@ -576,7 +576,7 @@ local function FindPowerPolePositions(args)
 end
 
 local function OnPlayerSelectedArea(event)
-  game.get_player(event.player_index).print("OnPlayerSelectedArea " .. event.item)
+  --game.get_player(event.player_index).print("OnPlayerSelectedArea " .. event.item)
   if event.item ~= "oil-outpost-planner"
   then return end
 
