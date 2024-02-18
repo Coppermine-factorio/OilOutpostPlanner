@@ -37,25 +37,25 @@ data:extend(
     style = "blue",
     icon =
     {
-      filename = graphics.."oil-outpost-planner.png",
+      filename = graphics.."oil-outpost-planner-shortcut.png",
       priority = "extra-high-no-scale",
-      size = 64,
+      size = 32,
       scale = 1,
       flags = { "icon" }
     },
     small_icon =
     {
-      filename = graphics.."oil-outpost-planner.png",
+      filename = graphics.."oil-outpost-planner-shortcut.png",
       priority = "extra-high-no-scale",
-      size = 64,
+      size = 32,
       scale = 1,
       flags = { "icon" }
     },
     disabled_small_icon =
     {
-      filename = graphics.."oil-outpost-planner.png",
+      filename = graphics.."oil-outpost-planner-shortcut.png",
       priority = "extra-high-no-scale",
-      size = 64,
+      size = 32,
       scale = 1,
       flags = { "icon" }
     }
