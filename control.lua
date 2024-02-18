@@ -127,6 +127,15 @@ local function SolveSteinerTree(args)
 
   local paths = {}
 
+  local function ClearNeighbourhood(target_idx)
+    for _, n in pairs(target_neighbourhoods[target_idx])
+    do
+      nearest_target_to[Pos2Str(n.pos)] = nil
+    end
+    target_neighbourhoods[target_idx] = nil
+    target_neighbourhood_index[target_idx] = nil
+  end
+
   for target_idx, target_set in pairs(targets)
   do
     target_neighbourhoods[target_idx] = {}
@@ -143,7 +152,7 @@ local function SolveSteinerTree(args)
           -- Immediately pick the subtarget for both and merge their
           -- target_neighbournoods accordinly
           choose_subtarget(target_idx, subtarget_idx, subtarget)
-          target_neighbourhoods[target_idx] = nil
+          ClearNeighbourhood(target_idx)
 
           other_target_info = nearest_target_to[subtarget_str]
           other_target = other_target_info.target
@@ -151,12 +160,10 @@ local function SolveSteinerTree(args)
           if other_subtarget_idx ~= nil
           then
             choose_subtarget(other_target, other_subtarget_idx, subtarget)
-            for _, n in pairs(target_neighbourhoods[other_target])
-            do
-              nearest_target_to[Pos2Str(n.pos)] = nil
-            end
+            ClearNeighbourhood(other_target)
             nearest_target_to[subtarget_str] = {target=other_target}
             target_neighbourhoods[other_target] = {}
+            target_neighbourhood_index[other_target] = 1
             table.insert(
               target_neighbourhoods[other_target],
               {pos=subtarget, distance=1}
@@ -180,23 +187,20 @@ local function SolveSteinerTree(args)
   print(serpent.block({ min_x=min_x, max_x=max_x, min_y=min_y, max_y=max_y}))
   print("forbidden = "..serpent.block(forbidden))
 
-  while MoreThanOne(target_neighbourhoods)
-  do
+  local function FindMergeTarget()
     local process_distance = 1
-    merge_target = nil
-
-    while merge_target == nil
+    while true
     do
       for i, target_neighbourhood in pairs(target_neighbourhoods)
       do
         local idx = target_neighbourhood_index[i]
+        assert(idx ~= nil, "idx == nil")
         local next_neighbour = target_neighbourhood[idx]
         print("next_neighbour = "..serpent.line(next_neighbour))
         assert(next_neighbour.distance >= process_distance,
           "Values out of order")
 
-        while merge_target == nil
-          and next_neighbour.distance == process_distance
+        while next_neighbour.distance == process_distance
         do
           local pos = next_neighbour.pos
           print("idx = "..idx..", pos ("..pos.x..","..pos.y..")")
@@ -228,14 +232,12 @@ local function SolveSteinerTree(args)
                 then
                   print("Candidate a self reference")
                 else
-                  print("Candidate a merge target")
-                  merge_target = {
+                  return {
                     t1 = i,
                     t2 = other_target,
                     pos1 = pos,
                     pos2 = candidate
                   }
-                  break
                 end
               end
             end
@@ -260,15 +262,22 @@ local function SolveSteinerTree(args)
           end
         end
 
-        if merge_target ~= nil
-        then
-          break
-        end
         target_neighbourhood_index[i] = idx
       end
 
       process_distance = process_distance + 1
     end
+  end
+
+  while MoreThanOne(target_neighbourhoods)
+  do
+    local merge_target = FindMergeTarget()
+
+    if merge_target == nil
+    then
+      return nil
+    end
+    print("Got a merge target "..serpent.line(merge_target))
 
     -- We have found a pair of targets to be merged.  We construct the path
     -- connecting them and set the subtarget
@@ -313,18 +322,11 @@ local function SolveSteinerTree(args)
     local t1 = merge_target.t1
     local t2 = merge_target.t2
 
-    for _, t in pairs({t1, t2})
-    do
-      for _, n in pairs(target_neighbourhoods[t])
-      do
-        nearest_target_to[Pos2Str(n.pos)] = nil
-      end
-    end
+    ClearNeighbourhood(t1)
+    ClearNeighbourhood(t2)
 
     target_neighbourhoods[t1] = {}
     target_neighbourhood_index[t1] = 1
-    target_neighbourhoods[t2] = nil
-    target_neighbourhood_index[t2] = nil
 
     local t1_neighbourhood = target_neighbourhoods[t1]
 
@@ -338,7 +340,6 @@ local function SolveSteinerTree(args)
   end
 
   return {
-    subtarget_choices=subtarget_choices,
     paths=paths
   }
 end
