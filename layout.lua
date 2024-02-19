@@ -11,6 +11,14 @@ local function round(x)
   return math.floor(x+0.5)
 end
 
+local function First(t)
+  -- Returns the first value from a table
+  for _, v in pairs(t)
+  do
+    return v
+  end
+end
+
 local function MoreThanOne(t)
   -- Returns true if the given table has more than one value
   local count = 0
@@ -109,10 +117,22 @@ local function SolveSteinerTree(args)
   assert(min_y < max_y, "Invalid y range")
   assert(#targets, "Must have at least one target")
 
+  -- Remove forbidden points from the targets
+  for _, target in pairs(targets)
+  do
+    for i, subtarget in pairs(target)
+    do
+      if forbidden[Pos2Str(subtarget)]
+      then
+        target[i] = nil
+      end
+    end
+  end
+
   -- Special case for a single target
   if #targets == 1
   then
-    path_node = targets[1][1]
+    path_node = First(targets[1])
     choose_subtarget(1, 1, path_node)
     return {
       paths = { [Pos2Str(path_node)] = path_node },
