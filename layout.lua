@@ -11,12 +11,24 @@ local function round(x)
   return math.floor(x+0.5)
 end
 
+local function IsEmpty(t)
+  -- Returns the first value from a table
+  for _, _ in pairs(t)
+  do
+    return false
+  end
+
+  return true
+end
+
 local function First(t)
   -- Returns the first value from a table
   for _, v in pairs(t)
   do
     return v
   end
+
+  return nil
 end
 
 local function MoreThanOne(t)
@@ -126,6 +138,12 @@ local function SolveSteinerTree(args)
       then
         target[i] = nil
       end
+    end
+
+    if IsEmpty(target)
+    then
+      args.debug({"oil-outpost-planner.msg_all_subtargets_invalid"})
+      return nil
     end
   end
 
@@ -284,7 +302,7 @@ local function SolveSteinerTree(args)
 
           if idx > 10000
           then
-            args.debug("Search space too big")
+            args.debug({"oil-outpost-planner.msg_too_big"})
             return nil
           end
         end
