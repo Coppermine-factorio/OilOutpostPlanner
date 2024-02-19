@@ -13,12 +13,13 @@ end
 
 local function create_setting_section(player_data, root, name, opts)
   opts = opts or {}
+  caption = opts.caption or {"oil-outpost-planner.settings_"..name.."_label"}
   local section = root.add{type="flow", direction="vertical"}
   player_data.gui.section[name] = section
   section.add{
     type="label",
     style="subheader_caption_label",
-    caption={"oil-outpost-planner.settings_"..name.."_label"}
+    caption=caption
   }
   local table_root = section.add{
     type="table",
@@ -136,16 +137,15 @@ function gui.create_interface(player, player_data)
       goto skip_resource
     end
 
-    if entities_by_resource_type[category] ~= nil
-    then
-      goto skip_resource
-    end
-
     local mineable_properties = resource_proto.mineable_properties
     if mineable_properties.products then
       for _, product in ipairs(mineable_properties.products) do
         if product.type == "fluid" then
-          entities_by_resource_type[category] = resource_proto.name
+          if entities_by_resource_type[category] == nil
+          then
+            entities_by_resource_type[category] = {}
+          end
+          table.insert(entities_by_resource_type[category], resource_proto.name)
           break
         end
       end
@@ -154,9 +154,25 @@ function gui.create_interface(player, player_data)
     ::skip_resource::
   end
 
-  for resource_type, entity in pairs(entities_by_resource_type)
+  for resource_type, entities in pairs(entities_by_resource_type)
   do
-    create_setting_section(player_data, frame, resource_type.."_pumpjack")
+    list = { "" }
+    for _, entity in pairs(entities)
+    do
+      if #list > 1
+      then
+        table.insert(list, ", ")
+      end
+      table.insert(list, {"entity-name."..entity})
+    end
+
+    caption = { "oil-outpost-planner.settings_pumpjack_label", list }
+    create_setting_section(
+      player_data,
+      frame,
+      resource_type.."_pumpjack",
+      { caption=caption }
+    )
   end
 
   -- Electric pole selection
