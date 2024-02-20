@@ -667,6 +667,41 @@ function layout.Plan(player, player_data, entities)
   local pumpjack_radius_int = math.floor(pumpjack_radius)
   local padding = pumpjack_radius_int + 2
 
+  local output_fluidboxes = {}
+  for _, fluidbox in pairs(pumpjack_proto.fluidbox_prototypes)
+  do
+    if fluidbox.production_type == "output"
+    then
+      table.insert(output_fluidboxes, fluidbox)
+    end
+  end
+
+  if #output_fluidboxes == 0
+  then
+    player.print({"oil-outpost-planner.msg_no_fluidbox"})
+    return
+  end
+
+  if #output_fluidboxes > 1
+  then
+    player.print({"oil-outpost-planner.msg_multiple_fluidboxes"})
+    return
+  end
+  local output_fluidbox = output_fluidboxes[1]
+
+  if #output_fluidbox.pipe_connections == 0
+  then
+    player.print({"oil-outpost-planner.msg_no_fluidbox"})
+    return
+  end
+
+  if #output_fluidbox.pipe_connections > 1
+  then
+    player.print({"oil-outpost-planner.msg_multiple_fluidboxes"})
+    return
+  end
+  local pipe_connection = output_fluidbox.pipe_connections[1]
+
   local out_pipe_sets = {}
   local forbidden_points = {}
   local min_x = 1e10
@@ -677,15 +712,13 @@ function layout.Plan(player, player_data, entities)
   for _, patch in pairs(oil_patches)
   do
     local pos = patch.position
-    table.insert(
-      out_pipe_sets,
-      {
-        { x = pos.x + 1, y = pos.y - 2 },
-        { x = pos.x + 2, y = pos.y - 1 },
-        { x = pos.x - 1, y = pos.y + 2 },
-        { x = pos.x - 2, y = pos.y + 1 },
-      }
-    )
+    local subtargets = {}
+    for _, offset in pairs(pipe_connection.positions)
+    do
+      table.insert(subtargets, { x = pos.x + offset.x, y = pos.y + offset.y })
+    end
+    table.insert(out_pipe_sets, subtargets)
+
     for off_x=-pumpjack_radius_int,pumpjack_radius_int
     do
       for off_y=-pumpjack_radius_int,pumpjack_radius_int
