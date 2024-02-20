@@ -10,7 +10,7 @@ data:extend(
     subgroup = "tool",
     order = "c[automated-construction]-b[oil-outpost-planner]",
     stack_size = 1,
-    icon_size = 64, icon_mipmaps = 4,
+    icon_size = 64,
     selection_color = { r = 0.5, g = 0.5, b = 0.5 },
     selection_mode = { "any-entity" },
     selection_cursor_box_type = "entity",
