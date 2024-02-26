@@ -190,13 +190,6 @@ local function update_pumpjack_selection(player_data)
 
   for _, miner_proto in pairs(all_miners) do
     if blacklist[miner_proto.name] then goto skip_miner end
-    local resources = miner_proto.resource_categories
-    local resource
-    for r, _ in pairs(resources)
-    do
-      if resource ~= nil then goto skip_miner end
-      resource = r
-    end
 
     local output_fluidboxes = {}
     for _, fluidbox in pairs(miner_proto.fluidbox_prototypes)
@@ -208,21 +201,25 @@ local function update_pumpjack_selection(player_data)
     end
     if #output_fluidboxes ~= 1 then goto skip_miner end
 
-    local choice_key = resource.."_pumpjack_choice"
 
-    if values_by_resource[resource] == nil
-    then
-      values_by_resource[resource] = {}
-    end
+    for resource, _ in pairs(miner_proto.resource_categories)
+    do
+      local choice_key = resource.."_pumpjack_choice"
 
-    table.insert(values_by_resource[resource], {
-      value=miner_proto.name,
-      tooltip=miner_proto.localised_name,
-      icon=("entity/"..miner_proto.name),
-      order=miner_proto.order,
-    })
-    if miner_proto.name == player_choices[choice_key] then
-      existing_choice_is_valid_by_resource[resource] = true
+      if values_by_resource[resource] == nil
+      then
+        values_by_resource[resource] = {}
+      end
+
+      table.insert(values_by_resource[resource], {
+        value=miner_proto.name,
+        tooltip=miner_proto.localised_name,
+        icon=("entity/"..miner_proto.name),
+        order=miner_proto.order,
+      })
+      if miner_proto.name == player_choices[choice_key] then
+        existing_choice_is_valid_by_resource[resource] = true
+      end
     end
 
     ::skip_miner::
@@ -230,6 +227,7 @@ local function update_pumpjack_selection(player_data)
 
   for resource, values in pairs(values_by_resource)
   do
+    local choice_key = resource.."_pumpjack_choice"
     local existing_choice_is_valid =
       existing_choice_is_valid_by_resource[resource]
     if not existing_choice_is_valid and #values > 0 then
@@ -246,9 +244,16 @@ local function update_pumpjack_selection(player_data)
 
     local gui_key = resource.."_pumpjack"
     local table_root = player_data.gui.tables[gui_key]
-    create_setting_selector(
-      player_data, table_root, "oop_action", gui_key, values
-    )
+
+    if table_root == nil
+    then
+      -- This can happen when there's a resource extractor for which there's no
+      -- corresponding resource entity, like the water pumpjack in some mod.
+    else
+      create_setting_selector(
+        player_data, table_root, "oop_action", gui_key, values
+      )
+    end
   end
 end
 
