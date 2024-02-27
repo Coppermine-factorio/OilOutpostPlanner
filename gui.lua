@@ -131,6 +131,11 @@ function gui.create_interface(player, player_data)
   entities_by_resource_type = {}
   for _, resource_proto in pairs(resource_protos)
   do
+    if resource_proto.has_flag("not-on-map")
+    then
+      goto skip_resource
+    end
+
     local category = resource_proto.resource_category
     if not category
     then
