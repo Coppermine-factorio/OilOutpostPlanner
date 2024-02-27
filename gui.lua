@@ -209,7 +209,6 @@ local function update_pumpjack_selection(player_data)
 
     for resource, _ in pairs(miner_proto.resource_categories)
     do
-      local choice_key = resource.."_pumpjack_choice"
 
       if values_by_resource[resource] == nil
       then
@@ -222,6 +221,8 @@ local function update_pumpjack_selection(player_data)
         icon=("entity/"..miner_proto.name),
         order=miner_proto.order,
       })
+
+      local choice_key = resource.."_pumpjack_choice"
       if miner_proto.name == player_choices[choice_key] then
         existing_choice_is_valid_by_resource[resource] = true
       end
