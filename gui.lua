@@ -185,6 +185,12 @@ function gui.create_interface(player, player_data)
     )
   end
 
+  -- Pipe selection
+  create_setting_section(player_data, frame, "pipe")
+
+  -- Pipe-to-ground selection
+  create_setting_section(player_data, frame, "pipe-to-ground")
+
   -- Electric pole selection
   create_setting_section(player_data, frame, "pole")
 end
@@ -268,61 +274,109 @@ local function update_pumpjack_selection(player_data)
   end
 end
 
-local function update_pole_selection(player_data)
+local function update_entity_selection(args)
+  local player_data = args.player_data
+  local filter_type = args.filter_type
+  local max_size = max_size
+  local table_key = args.table_key
+  local allow_none = args.allow_none
+
   local choices = player_data.choices
+  local existing_choice_key = table_key.."_choice"
+  local existing_choice = choices[existing_choice_key]
+  local existing_choice_is_valid = false
 
   local values = {}
-  table.insert(values, {
-    value="none",
-    tooltip={"oil-outpost-planner.choice_none"},
-    icon="oop_no_entity",
-    order="",
-  })
+  if allow_none
+  then
+    table.insert(values, {
+      value="none",
+      tooltip={"oil-outpost-planner.choice_none"},
+      icon="oop_no_entity",
+      order="",
+    })
+    local existing_choice_is_valid = ("none" == existing_choice)
+  end
 
-  local existing_choice_is_valid = ("none" == choices.pole_choice)
-  local poles = game.get_filtered_entity_prototypes{
-    { filter="type", type="electric-pole" }
+  local entity_protos = game.get_filtered_entity_prototypes{
+    { filter="type", type=filter_type }
   }
-  for _, pole in pairs(poles) do
-    if pole.has_flag("hidden")
-      or pole.has_flag("not-blueprintable")
-      or not pole.has_flag("player-creation")
+  for _, entity_proto in pairs(entity_protos) do
+    if entity_proto.has_flag("hidden")
+      or entity_proto.has_flag("not-blueprintable")
+      or not entity_proto.has_flag("player-creation")
     then
-      goto skip_pole
+      goto skip_entity_proto
     end
 
-    if blacklist[pole.name] then goto skip_pole end
-    local cbox = pole.collision_box
+    if blacklist[entity_proto.name] then goto skip_entity_proto end
+    local cbox = entity_proto.collision_box
     local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
-    local supply_area = pole.supply_area_distance
-    if size > 1 then goto skip_pole end
+    if size > 1 then goto skip_entity_proto end
 
     table.insert(values, {
-      value=pole.name,
-      tooltip=pole.localised_name,
-      icon=("entity/"..pole.name),
-      order=pole.order,
+      value=entity_proto.name,
+      tooltip=entity_proto.localised_name,
+      icon=("entity/"..entity_proto.name),
+      order=entity_proto.order,
     })
-    if pole.name == choices.pole_choice
+    if entity_proto.name == existing_choice
     then
       existing_choice_is_valid = true
     end
 
-    ::skip_pole::
+    ::skip_entity_proto::
   end
 
   if not existing_choice_is_valid then
-    choices.pole_choice = "none"
+    if #values > 0
+    then
+      choices[existing_choice_key] = values[1].value
+    else
+      choices[existing_choice_key] = nil
+    end
   end
 
-  local table_root = player_data.gui.tables["pole"]
+  local table_root = player_data.gui.tables[table_key]
   create_setting_selector(
-    player_data, table_root, "oop_action", "pole", values
+    player_data, table_root, "oop_action", table_key, values
   )
+end
+
+local function update_pole_selection(player_data)
+  update_entity_selection{
+    player_data=player_data,
+    filter_type="electric-pole",
+    max_size=1,
+    table_key="pole",
+    allow_none=true,
+  }
+end
+
+local function update_pipe_selection(player_data)
+  update_entity_selection{
+    player_data=player_data,
+    filter_type="pipe",
+    max_size=1,
+    table_key="pipe",
+    allow_none=false,
+  }
+end
+
+local function update_pipe_to_ground_selection(player_data)
+  update_entity_selection{
+    player_data=player_data,
+    filter_type="pipe-to-ground",
+    max_size=1,
+    table_key="pipe-to-ground",
+    allow_none=true,
+  }
 end
 
 local function update_selections(player, player_data)
   update_pumpjack_selection(player_data)
+  update_pipe_selection(player_data)
+  update_pipe_to_ground_selection(player_data)
   update_pole_selection(player_data)
 end
 

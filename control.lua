@@ -11,6 +11,8 @@ local function get_player_config(player)
   then
     global.players[player_index] = {
       choices = {
+        pipe_choice = "pipe",
+        ["pipe-to-ground_choice"] = "pipe-to-ground",
         pole_choice = "medium-electric-pole",
         ["basic-fluid_pumpjack_choice"] = "pumpjack",
       },

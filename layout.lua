@@ -674,13 +674,21 @@ function layout.Plan(player, player_data, entities)
 
   local surface = player.surface
 
-  local pipe_type = "pipe"
-  local underground_pipe_type = "pipe-to-ground"
+  local pipe_type = player_data.choices["pipe_choice"]
+  local underground_pipe_type = player_data.choices["pipe-to-ground_choice"]
   local pumpjack_type = player_data.choices[choice_key]
-  local min_underground_distance = 3
 
-  local underground_proto = game.entity_prototypes[underground_pipe_type]
-  local max_underground_distance = underground_proto.max_underground_distance
+  local underground_proto
+  local min_underground_distance
+  local max_underground_distance
+  if underground_pipe_type == "none"
+  then
+    min_underground_distance = 1e10
+  else
+    underground_proto = game.entity_prototypes[underground_pipe_type]
+    max_underground_distance = underground_proto.max_underground_distance
+    min_underground_distance = 3
+  end
 
   local pumpjack_proto = game.entity_prototypes[pumpjack_type]
   local pumpjack_radius = pumpjack_proto.selection_box.right_bottom.x
