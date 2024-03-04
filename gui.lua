@@ -136,6 +136,11 @@ function gui.create_interface(player, player_data)
       goto skip_resource
     end
 
+    if resource_proto.autoplace_specification == nil
+    then
+      goto skip_resource
+    end
+
     local category = resource_proto.resource_category
     if not category
     then
