@@ -627,18 +627,32 @@ end
 
 function layout.Plan(player, player_data, entities)
   local oil_patches = {}
-  local resource_category = nil
+  local chosen_entity_name
+  local resource_category
+  local choice_key
 
   for _, entity in ipairs(entities)
   do
-    if entity.valid
-    and entity.type == "resource"
+    local entity_proto = entity.prototype
+
+    if chosen_entity_name == nil
     then
-      if entity.name == "crude-oil"
+      if entity.valid
+      and entity.type == "resource"
       then
-        --player.print("Found oil!")
+        resource_category = entity_proto.resource_category
+        choice_key = resource_category.."_pumpjack_choice"
+        if player_data.choices[choice_key]
+        then
+          --player.print("Found oil!")
+          table.insert(oil_patches, entity)
+          chosen_entity_name = entity.name
+        end
+      end
+    else
+      if entity.name == chosen_entity_name
+      then
         table.insert(oil_patches, entity)
-        resource_category = entity.prototype.resource_category
       end
     end
   end
@@ -650,13 +664,19 @@ function layout.Plan(player, player_data, entities)
   end
 
   assert(resource_category ~= nil, "Failed to get category")
+  assert(choice_key ~= nil, "Failed to get choice key")
+
+  player.print({
+    "oil-outpost-planner.msg_count_patches",
+    {"entity-name."..chosen_entity_name},
+    #oil_patches
+  })
 
   local surface = player.surface
 
   local pipe_type = "pipe"
   local underground_pipe_type = "pipe-to-ground"
-  local pumpjack_type = player_data.choices[
-    resource_category.."_pumpjack_choice"]
+  local pumpjack_type = player_data.choices[choice_key]
   local min_underground_distance = 3
 
   local underground_proto = game.entity_prototypes[underground_pipe_type]
