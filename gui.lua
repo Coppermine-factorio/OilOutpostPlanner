@@ -284,7 +284,13 @@ local function update_pole_selection(player_data)
     { filter="type", type="electric-pole" }
   }
   for _, pole in pairs(poles) do
-    if pole.flags and pole.flags.hidden then goto skip_pole end
+    if pole.has_flag("hidden")
+      or pole.has_flag("not-blueprintable")
+      or not pole.has_flag("player-creation")
+    then
+      goto skip_pole
+    end
+
     if blacklist[pole.name] then goto skip_pole end
     local cbox = pole.collision_box
     local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
