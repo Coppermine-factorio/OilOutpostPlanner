@@ -1,9 +1,9 @@
 {
  "name": "OilOutpostPlanner",
- "version": "0.1.1",
+ "version": "0.1.2",
  "factorio_version": "2.0",
  "title": "Oil Outpost Planner",
  "author": "Coppermine",
- "description": "Autonatically blueprint pumpjacks, pipes, and power poles for an oil outpost.  Inspired by, and using some code from, Mining patch planner, by Rimbas",
+ "description": "Automatically blueprint pumpjacks, pipes, and power poles for an oil outpost.  Inspired by, and using some code from, Mining patch planner, by Rimbas",
  "dependencies": []
 }
