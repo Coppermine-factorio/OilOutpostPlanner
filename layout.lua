@@ -75,7 +75,7 @@ local function ForceGhostAt(args)
 
   existing = surface.find_entities_filtered{
     area=new_entity.bounding_box,
-    collision_mask={"object-layer", "rail-layer", "transport-belt-layer"}
+    collision_mask={"object", "rail", "transport_belt"}
   }
   for _, entity in pairs(existing)
   do
@@ -417,6 +417,7 @@ local function FindPipePaths(args)
     bounds=bounds,
     forbidden=forbidden,
     choose_subtarget=ChooseSubtarget,
+    debug=args.debug,
   }
 
   if tree_result == nil
@@ -611,6 +612,7 @@ local function FindPowerPolePositions(args)
     bounds=bounds,
     forbidden=forbidden,
     choose_subtarget=ChooseSubtarget,
+    debug=args.debug,
   }
 
   if tree_result == nil
@@ -672,6 +674,21 @@ function layout.Plan(player, player_data, entities)
     #oil_patches
   })
 
+  local direction_array = {
+    defines.direction.north,
+    defines.direction.east,
+    defines.direction.south,
+    defines.direction.west,
+  }
+
+  -- Offsets corresponding to the respective directions in direction_array
+  local direction_offset_array = {
+    { x = 0, y = -1 },
+    { x = 1, y = 0 },
+    { x = 0, y = 1 },
+    { x = -1, y = 0 },
+  }
+
   local surface = player.surface
 
   local pipe_type = player_data.choices["pipe_choice"]
@@ -685,12 +702,12 @@ function layout.Plan(player, player_data, entities)
   then
     min_underground_distance = 1e10
   else
-    underground_proto = game.entity_prototypes[underground_pipe_type]
+    underground_proto = prototypes.entity[underground_pipe_type]
     max_underground_distance = underground_proto.max_underground_distance
     min_underground_distance = 3
   end
 
-  local pumpjack_proto = game.entity_prototypes[pumpjack_type]
+  local pumpjack_proto = prototypes.entity[pumpjack_type]
   local pumpjack_radius = pumpjack_proto.selection_box.right_bottom.x
   local pumpjack_radius_int = math.floor(pumpjack_radius)
   local padding = pumpjack_radius_int + 2
@@ -741,9 +758,16 @@ function layout.Plan(player, player_data, entities)
   do
     local pos = patch.position
     local subtargets = {}
-    for _, offset in pairs(pipe_connection.positions)
+    for i, offset in pairs(pipe_connection.positions)
     do
-      table.insert(subtargets, { x = pos.x + offset.x, y = pos.y + offset.y })
+      direction_offset = direction_offset_array[i]
+      table.insert(
+        subtargets,
+        {
+          x = pos.x + offset.x + direction_offset.x,
+          y = pos.y + offset.y + direction_offset.y,
+        }
+      )
     end
     table.insert(out_pipe_sets, subtargets)
 
@@ -799,13 +823,6 @@ function layout.Plan(player, player_data, entities)
   assert(#oil_patches == #directions, "Did not get one direction per patch\n"
   ..serpent.line(oil_patches).."\n"..serpent.line(directions))
 
-  local direction_array = {
-    defines.direction.north,
-    defines.direction.east,
-    defines.direction.south,
-    defines.direction.west,
-  }
-
   pumpjack_positions = {}
 
   for i, patch in pairs(oil_patches)
@@ -858,10 +875,12 @@ function layout.Plan(player, player_data, entities)
     return
   end
 
-  local power_pole_proto = game.entity_prototypes[power_pole_type]
-  local wire_reach = power_pole_proto.max_wire_distance
+  local power_pole_proto = prototypes.entity[power_pole_type]
+  -- TODO: if we want to suport quality power poles, we need to pass quality
+  -- to get_max_wire_distance and get_supply_area_distance
+  local wire_reach = power_pole_proto.get_max_wire_distance()
   local target_to_pole_max = (
-    power_pole_proto.supply_area_distance + pumpjack_radius - 1)
+    power_pole_proto.get_supply_area_distance() + pumpjack_radius - 1)
 
   result = FindPowerPolePositions{
     bounds=bounds,

@@ -4,7 +4,7 @@ local gui = {}
 
 local function style_helper_selection(check)
   if check then return "yellow_slot_button" end
-  return "recipe_slot_button"
+  return "slot_button"
 end
 
 local function wrap_tooltip(tooltip)
@@ -125,7 +125,7 @@ function gui.create_interface(player, player_data)
   --}
 
   -- Pumpjack selection
-  local resource_protos = game.get_filtered_entity_prototypes{
+  local resource_protos = prototypes.get_entity_filtered{
     {filter="type", type="resource"}
   }
   entities_by_resource_type = {}
@@ -200,7 +200,7 @@ local function update_pumpjack_selection(player_data)
 
   local values_by_resource = {}
   local existing_choice_is_valid_by_resource = {}
-  local all_miners = game.get_filtered_entity_prototypes{
+  local all_miners = prototypes.get_entity_filtered{
     {filter="type", type="mining-drill"}
   }
 
@@ -298,11 +298,11 @@ local function update_entity_selection(args)
     local existing_choice_is_valid = ("none" == existing_choice)
   end
 
-  local entity_protos = game.get_filtered_entity_prototypes{
+  local entity_protos = prototypes.get_entity_filtered{
     { filter="type", type=filter_type }
   }
   for _, entity_proto in pairs(entity_protos) do
-    if entity_proto.has_flag("hidden")
+    if entity_proto.hidden
       or entity_proto.has_flag("not-blueprintable")
       or not entity_proto.has_flag("player-creation")
     then

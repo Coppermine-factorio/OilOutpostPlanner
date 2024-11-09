@@ -3,13 +3,13 @@ local layout = require("layout")
 
 local function get_player_config(player)
   player_index = player.index
-  if global.players == nil
+  if storage.players == nil
   then
-    global.players = {}
+    storage.players = {}
   end
-  if global.players[player_index] == nil
+  if storage.players[player_index] == nil
   then
-    global.players[player_index] = {
+    storage.players[player_index] = {
       choices = {
         pipe_choice = "pipe",
         ["pipe-to-ground_choice"] = "pipe-to-ground",
@@ -24,7 +24,7 @@ local function get_player_config(player)
       },
     }
   end
-  return global.players[player_index]
+  return storage.players[player_index]
 end
 
 local function OnPlayerSelectedArea(event)
@@ -81,7 +81,7 @@ script.on_event(defines.events.on_player_changed_surface, cursor_stack_check)
 script.on_configuration_changed(function(config_changed_data)
   -- Reset all our global state to defaults
   game.print({"oil-outpost-planner.msg_config_change"})
-  global.players = nil
+  storage.players = nil
 
   for _, player in pairs(game.players)
   do
