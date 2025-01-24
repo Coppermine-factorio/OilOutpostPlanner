@@ -73,6 +73,16 @@ local function ForceGhostAt(args)
     player=player,
   }
 
+  local setting = player.mod_settings["oil-outpost-planner-interface-with-module-inserter-ex"]
+  if setting and setting.value and remote.interfaces["ModuleInserterEx"] then
+    remote.call(
+      "ModuleInserterEx",
+      "apply_module_config_to_entities",
+      player.index,
+      {new_entity}
+    )
+  end
+
   existing = surface.find_entities_filtered{
     area=new_entity.bounding_box,
     collision_mask={"object", "rail", "transport_belt"}
