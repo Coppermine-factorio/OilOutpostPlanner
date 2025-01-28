@@ -164,6 +164,12 @@ local function SolveSteinerTree(args)
   -- those two along the shortest path.  As soon as we join two, they become
   -- one combined target which we reset and spread out from once more.
   -- Once all targets have combined into one large set, we are done.
+
+  -- For each i:
+  --   target_neighbourhoods[i] is an array of points in that neighbourhood,
+  --     sorted in increasing order of disance from the target
+  --   target_neighbourhood_index[i] is an index into target_neighbourhoods[i]
+  --     of the next entry to examine
   local nearest_target_to = {}
   local target_neighbourhoods = {}
   local target_neighbourhood_index = {}
@@ -359,6 +365,7 @@ local function SolveSteinerTree(args)
         end
 
         local n = nearest_target_to[Pos2Str(pos)]
+        assert(n ~= nil, "Expected neighbour")
         local next_pos = n.next_pos
         if next_pos ~= nil
         then
