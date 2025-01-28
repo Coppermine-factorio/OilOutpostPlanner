@@ -125,6 +125,7 @@ local function SolveSteinerTree(args)
   local adjacency = args.adjacency
   local forbidden = args.forbidden
   local choose_subtarget = args.choose_subtarget
+  local debug_viz_surface = args.debug_viz_surface
 
   -- Sanity check args
   assert(min_x < max_x, "Invalid x range")
@@ -211,6 +212,15 @@ local function SolveSteinerTree(args)
               {pos=subtarget, distance=1}
             )
             paths[subtarget_str] = subtarget
+            if debug_viz_surface ~= nil
+            then
+              rendering.draw_text{
+                text="x",
+                surface=debug_viz_surface,
+                target=subtarget,
+                color={1,1,1}
+              }
+            end
           end
           break
         else
@@ -316,6 +326,8 @@ local function SolveSteinerTree(args)
     end
   end
 
+  local path_index = 0
+
   while MoreThanOne(target_neighbourhoods)
   do
     local merge_target = FindMergeTarget()
@@ -383,7 +395,19 @@ local function SolveSteinerTree(args)
       path_node_str = Pos2Str(path_node)
       nearest_target_to[path_node_str] = { target=t1 }
       paths[path_node_str] = path_node
+
+      if debug_viz_surface ~= nil
+      then
+        rendering.draw_text{
+          text=tostring(path_index),
+          surface=debug_viz_surface,
+          target=path_node,
+          color={1,1,1}
+        }
+      end
     end
+
+    path_index = path_index + 1
   end
 
   return {
@@ -397,6 +421,7 @@ local function FindPipePaths(args)
   local forbidden = args.forbidden
   local min_underground_distance = args.min_underground_distance
   local max_underground_distance = args.max_underground_distance
+  local debug_viz_surface = args.debug_viz_surface
 
   local directions = {}
   local directional_pipes = {}
@@ -420,6 +445,7 @@ local function FindPipePaths(args)
     forbidden=forbidden,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
+    debug_viz_surface=debug_viz_surface
   }
 
   if tree_result == nil
@@ -871,7 +897,8 @@ function layout.Plan(player, player_data, entities)
     forbidden=forbidden_points,
     min_underground_distance=min_underground_distance,
     max_underground_distance=max_underground_distance,
-    debug=player.print
+    debug=player.print,
+    --debug_viz_surface=surface
   }
 
   if result == nil
