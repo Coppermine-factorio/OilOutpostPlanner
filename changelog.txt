@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.0
+Date: 28.01.2025
+  Features:
+    - Add landfill under ghosts as needed, and concrete on Aquilo.
+    - Add heat pipes to layout on Aquilo.
+    - Integrate with Module Inserter Ex to auto-fill modules.
+  Bugfixes:
+    - Fixed issue with pipe layout algorithm that would sometimes place additional pipe ghosts.
+---------------------------------------------------------------------------------------------------
 Version: 0.1.2
 Date: 09.11.2024
   Bugfixes:
