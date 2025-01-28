@@ -69,6 +69,7 @@ local function ForceGhostAt(args)
     inner_name=name,
     position=position,
     direction=direction,
+    raise_built=true,
     force=player.force,
     player=player,
   }
@@ -86,6 +87,77 @@ local function ForceGhostAt(args)
   end
 
   return new_entity
+end
+
+local function Collides(proto1, proto2)
+  local layers1 = proto1.collision_mask.layers
+  local layers2 = proto2.collision_mask.layers
+
+  for name, _ in pairs(layers1)
+  do
+    if layers2[name]
+    then
+      return true
+    end
+  end
+
+  return false
+end
+
+local function AddLandfillUnder(args)
+  local player = args.player
+  local ghosts = args.ghosts
+
+  for _, ghost in pairs(ghosts)
+  do
+    local surface = ghost.surface
+    local entity_proto = ghost.ghost_prototype
+    local tiles = surface.find_tiles_filtered{
+      area=ghost.bounding_box,
+      collision_mask=entity_proto.collision_mask.layers
+    }
+
+    for _, tile in pairs(tiles)
+    do
+      if tile.name == "out-of-map"
+      then
+        goto skip
+      end
+
+      local tile_proto = tile.prototype
+
+      while true
+      do
+        local cover_tile = tile_proto.default_cover_tile
+
+        if not Collides(tile_proto, entity_proto)
+        then
+          break
+        end
+
+        if cover_tile == nil
+        then
+          -- Hardcode concrete as the cover for meltable tiles for Aquilo; I
+          -- don't know how we're supposed to know that this is the 'correct'
+          -- tile for this surface.
+          cover_tile = prototypes.tile["concrete"]
+        end
+
+        surface.create_entity{
+          name="tile-ghost",
+          position=tile.position,
+          inner_name=cover_tile.name,
+          raise_built=true,
+          player=player,
+          force=player.force
+        }
+
+        tile_proto = cover_tile
+      end
+
+      ::skip::
+    end
+  end
 end
 
 local function AddForbiddenPoints(args)
@@ -1085,6 +1157,12 @@ function layout.Plan(player, player_data, entities)
       ghosts
     )
   end
+
+  AddLandfillUnder{
+    player=player,
+    ghosts=ghosts,
+    debug=player.print
+  }
 end
 
 return layout
