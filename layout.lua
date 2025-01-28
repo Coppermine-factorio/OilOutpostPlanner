@@ -73,16 +73,6 @@ local function ForceGhostAt(args)
     player=player,
   }
 
-  local setting = player.mod_settings["oil-outpost-planner-interface-with-module-inserter-ex"]
-  if setting and setting.value and remote.interfaces["ModuleInserterEx"] then
-    remote.call(
-      "ModuleInserterEx",
-      "apply_module_config_to_entities",
-      player.index,
-      {new_entity}
-    )
-  end
-
   existing = surface.find_entities_filtered{
     area=new_entity.bounding_box,
     collision_mask={"object", "rail", "transport_belt"}
@@ -94,6 +84,8 @@ local function ForceGhostAt(args)
       entity.order_deconstruction(player.force, player)
     end
   end
+
+  return new_entity
 end
 
 local function AddForbiddenPoints(args)
@@ -562,6 +554,62 @@ local function FindPipePaths(args)
   }
 end
 
+local function FindHeatPipePaths(args)
+  local bounds = args.bounds
+  local entities = args.entities
+  local forbidden = args.forbidden
+
+  local targets = {}
+
+  for _, entity in pairs(entities)
+  do
+    local entity_pos = entity.position
+    local entity_proto = entity.ghost_prototype
+    local entity_radius = entity_proto.selection_box.right_bottom.x
+    local heat_pipe_range = entity_radius + 0.5
+    --local pumpjack_radius_int = math.floor(pumpjack_radius)
+
+    local subtargets = {}
+    for x = -heat_pipe_range,heat_pipe_range
+    do
+      local pos = { x = entity_pos.x + x, y = entity_pos.y + heat_pipe_range }
+      table.insert(subtargets, pos)
+      local pos2 = { x = entity_pos.x + x, y = entity_pos.y - heat_pipe_range }
+      table.insert(subtargets, pos2)
+    end
+    for y = 1-heat_pipe_range,heat_pipe_range-1
+    do
+      local pos = { x = entity_pos.x + heat_pipe_range, y = entity_pos.y + y }
+      table.insert(subtargets, pos)
+      local pos2 = { x = entity_pos.x - heat_pipe_range, y = entity_pos.y + y }
+      table.insert(subtargets, pos2)
+    end
+    table.insert(targets, subtargets)
+  end
+
+  local function ChooseSubtarget(target_idx, subtarget_idx, pos)
+    -- no implementation needed
+  end
+
+  local tree_result = SolveSteinerTree{
+    targets=targets,
+    adjacency=orthogonal_neighbours,
+    bounds=bounds,
+    forbidden=forbidden,
+    choose_subtarget=ChooseSubtarget,
+    debug=args.debug,
+  }
+
+  if tree_result == nil
+  then
+    return nil
+  end
+
+  return {
+    heat_pipe_poss = tree_result.paths
+  }
+end
+
 local function FindPowerPolePositions(args)
   local bounds = args.bounds
   local entities = args.entities
@@ -700,10 +748,17 @@ function layout.Plan(player, player_data, entities)
   }
 
   local surface = player.surface
+  local planet = surface.planet
+  local entities_require_heating = false
+  if planet ~= nil
+  then
+    entities_require_heating = planet.prototype.entities_require_heating
+  end
 
   local pipe_type = player_data.choices["pipe_choice"]
   local underground_pipe_type = player_data.choices["pipe-to-ground_choice"]
   local pumpjack_type = player_data.choices[choice_key]
+  local heat_pipe_type = "heat-pipe"
 
   local underground_proto
   local min_underground_distance
@@ -834,6 +889,7 @@ function layout.Plan(player, player_data, entities)
   ..serpent.line(oil_patches).."\n"..serpent.line(directions))
 
   pumpjack_positions = {}
+  ghosts = {}
 
   for i, patch in pairs(oil_patches)
   do
@@ -842,24 +898,26 @@ function layout.Plan(player, player_data, entities)
     local dir_index = directions[i]
     local direction = direction_array[dir_index]
     --print("Using direction "..direction.." for patch at "..serpent.line(position))
-    ForceGhostAt{
+    local ghost = ForceGhostAt{
       surface=surface,
       name=pumpjack_type,
       position=position,
       direction=direction,
       player=player,
     }
+    table.insert(ghosts, ghost)
   end
 
   for _, pipe_pos in pairs(pipes)
   do
-    ForceGhostAt{
+    local ghost = ForceGhostAt{
       surface=surface,
       name=pipe_type,
       position=pipe_pos,
       player=player,
     }
     forbidden_points[Pos2Str(pipe_pos)] = true
+    table.insert(ghosts, ghost)
   end
 
   for _, underground_info in pairs(undergrounds)
@@ -867,7 +925,7 @@ function layout.Plan(player, player_data, entities)
     local pos = underground_info.pos
     local direction = underground_info.direction
 
-    ForceGhostAt{
+    local ghost = ForceGhostAt{
       surface=surface,
       name=underground_pipe_type,
       position=pos,
@@ -875,6 +933,37 @@ function layout.Plan(player, player_data, entities)
       player=player,
     }
     forbidden_points[Pos2Str(pos)] = true
+    table.insert(ghosts, ghost)
+  end
+
+  -- Next step is to add heat pipes, but only if the surface requires them
+  if entities_require_heating
+  then
+    local result = FindHeatPipePaths{
+      bounds=bounds,
+      entities=ghosts,
+      forbidden=forbidden_points,
+      debug=player.print
+    }
+
+    if result == nil
+    then
+      player.print({"oil-outpost-planner.msg_heat_pipe_layout_failed"})
+      return
+    end
+
+    local heat_pipe_poss = result.heat_pipe_poss
+    for _, pos in pairs(heat_pipe_poss)
+    do
+      local ghost = ForceGhostAt{
+        surface=surface,
+        name=heat_pipe_type,
+        position=pos,
+        player=player,
+      }
+      forbidden_points[Pos2Str(pos)] = true
+      table.insert(ghosts, ghost)
+    end
   end
 
   -- Now pumpjacks and pipes are complete, the final step is to add power poles
@@ -911,12 +1000,23 @@ function layout.Plan(player, player_data, entities)
 
   for _, pole_pos in pairs(pole_poss)
   do
-    ForceGhostAt{
+    local ghost = ForceGhostAt{
       surface=surface,
       name=power_pole_type,
       position=pole_pos,
       player=player,
     }
+    table.insert(ghosts, ghost)
+  end
+
+  local setting = player.mod_settings["oil-outpost-planner-interface-with-module-inserter-ex"]
+  if setting and setting.value and remote.interfaces["ModuleInserterEx"] then
+    remote.call(
+      "ModuleInserterEx",
+      "apply_module_config_to_entities",
+      player.index,
+      ghosts
+    )
   end
 end
 
