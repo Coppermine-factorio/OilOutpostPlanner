@@ -349,6 +349,7 @@ local function SolveSteinerTree(args)
     local pos1 = merge_target.pos1
     local pos2 = merge_target.pos2
     local this_path = {}
+    local chosen_subtargets = {}
 
     for _, pos in pairs({pos1, pos2})
     do
@@ -377,6 +378,7 @@ local function SolveSteinerTree(args)
             local target = n.target
             assert(target ~= nil, "Expected target")
             choose_subtarget(target, subtarget_idx, pos)
+            chosen_subtargets[target] = subtarget_idx
           else
             --print("No subtarget_idx in "..serpent.line(n))
           end
@@ -388,13 +390,44 @@ local function SolveSteinerTree(args)
     local t1 = merge_target.t1
     local t2 = merge_target.t2
 
+    -- Gather old distance-1 neighbourhoods for each marged target (but only
+    -- for the chosen subtarget, when applicable)
+    local old_neighbouhoods = {}
+    for _, t in pairs({t1, t2})
+    do
+      local t_neighbourhood = target_neighbourhoods[t]
+      for _, neighbour in pairs(t_neighbourhood)
+      do
+        if neighbour.distance > 1
+        then
+          break
+        end
+
+        local pos = neighbour.pos
+        local n = nearest_target_to[Pos2Str(pos)]
+        local subtarget = n.subtarget_idx
+
+        if subtarget == nil or subtarget == chosen_subtargets[t]
+        then
+          table.insert(old_neighbouhoods, { pos=neighbour.pos, distance=1 })
+        end
+      end
+    end
+
     ClearNeighbourhood(t1)
     ClearNeighbourhood(t2)
 
-    target_neighbourhoods[t1] = {}
+    -- Initialize the new neighbourhood as the union of the two old distance-1
+    -- neighbourhoods and the path between them
+    target_neighbourhoods[t1] = old_neighbouhoods
     target_neighbourhood_index[t1] = 1
-
     local t1_neighbourhood = target_neighbourhoods[t1]
+
+    for _, neighbour in pairs(t1_neighbourhood)
+    do
+      pos_str = Pos2Str(neighbour.pos)
+      nearest_target_to[pos_str] = { target=t1 }
+    end
 
     for _, path_node in pairs(this_path)
     do
