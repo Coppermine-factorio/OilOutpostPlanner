@@ -1,11 +1,7 @@
 local blacklist = require("blacklist")
+local util = require("util")
 
 local gui = {}
-
-local function style_helper_selection(check)
-  if check then return "yellow_slot_button" end
-  return "slot_button"
-end
 
 local function wrap_tooltip(tooltip)
   return tooltip and {"", "     ", tooltip}
@@ -21,7 +17,47 @@ local function create_setting_section(player_data, root, name, opts)
     style="subheader_caption_label",
     caption=caption
   }
-  local table_root = section.add{
+  local this_row = section.add{
+    type="flow",
+    direction=opts.direction or "horizontal",
+  }
+  local qualities = util.get_visible_qualities()
+  if #qualities > 0
+  then
+    local selected_quality = player_data.qualities[name]
+    if selected_quality == nil
+    then
+      selected_quality = qualities[1]
+    end
+
+    local quality_root = this_row.add{
+      type="table",
+      direction=opts.direction or "horizontal",
+      style="slot_table",
+      column_count=#qualities,
+    }
+
+    quality_buttons = {}
+
+    for _, quality in pairs(qualities)
+    do
+      local quality_button = quality_root.add{
+        type="button",
+        caption="[quality="..quality.name.."]",
+        style="tool_button",
+        tags={
+          oop_set_quality=name,
+          value=quality.name,
+        },
+      }
+      quality_button.visible = false
+      quality_button.toggled = selected_quality == quality.name
+      quality_buttons[quality.name] = quality_button
+    end
+
+    player_data.gui.quality_selections[name] = quality_buttons
+  end
+  local table_root = this_row.add{
     type="table",
     direction=opts.direction or "horizontal",
     style="filter_slot_table",
@@ -51,7 +87,7 @@ local function create_setting_selector(
     if value.type == "choose-elem-button" then
       button = root.add{
         type="choose-elem-button",
-        style=style_helper_selection(),
+        style="slot_sized_button",
         tooltip=wrap_tooltip(value.tooltip),
         elem_type=value.elem_type,
         elem_filters=value.elem_filters,
@@ -68,14 +104,13 @@ local function create_setting_selector(
         sprite=value.icon,
         ignored_by_interaction=true,
         style="oop_fake_item_placeholder",
-        visible=not value.elem_value,
       }
     else
       local icon = value.icon
       if style_check and value.icon_enabled then icon = value.icon_enabled end
       button = root.add{
         type="sprite-button",
-        style=style_helper_selection(style_check),
+        style="slot_sized_button",
         sprite=icon,
         tags={
           [action_type_override]=action,
@@ -87,6 +122,7 @@ local function create_setting_selector(
         },
         tooltip=wrap_tooltip(value.tooltip),
       }
+      button.toggled = style_check
     end
     action_class[value.value] = button
   end
@@ -295,7 +331,7 @@ local function update_entity_selection(args)
       icon="oop_no_entity",
       order="",
     })
-    local existing_choice_is_valid = ("none" == existing_choice)
+    existing_choice_is_valid = ("none" == existing_choice)
   end
 
   local entity_protos = prototypes.get_entity_filtered{
@@ -373,11 +409,25 @@ local function update_pipe_to_ground_selection(player_data)
   }
 end
 
+local function update_quality_visibility(force, player_data)
+  local unlocked_qualities = util.get_unlocked_qualities(force)
+  local any_visible = #unlocked_qualities > 1
+
+  for _, quality_buttons in pairs(player_data.gui.quality_selections)
+  do
+    for quality_name, button in pairs(quality_buttons)
+    do
+      button.visible = any_visible and force.is_quality_unlocked(quality_name)
+    end
+  end
+end
+
 local function update_selections(player, player_data)
   update_pumpjack_selection(player_data)
   update_pipe_selection(player_data)
   update_pipe_to_ground_selection(player_data)
   update_pole_selection(player_data)
+  update_quality_visibility(player.force, player_data)
 end
 
 function gui.show_interface(player, player_data)
@@ -404,9 +454,22 @@ function gui.on_click(event, player, player_data)
     local value = evt_ele_tags["value"]
     local last_value = player_data.choices[action.."_choice"]
 
-    player_data.gui.selections[action][last_value].style = style_helper_selection(false)
-    event.element.style = style_helper_selection(true)
+    player_data.gui.selections[action][last_value].toggled = false
+    event.element.toggled = true
     player_data.choices[action.."_choice"] = value
+  elseif evt_ele_tags["oop_set_quality"] then
+    local name = evt_ele_tags["oop_set_quality"]
+    local value = evt_ele_tags["value"]
+    local last_value = player_data.qualities[name]
+
+    if last_value == nil
+    then
+      last_value = util.get_default_quality().name
+    end
+
+    player_data.gui.quality_selections[name][last_value].toggled = false
+    event.element.toggled = true
+    player_data.qualities[name] = value
   elseif evt_ele_tags["oop_toggle"] then
     local action = evt_ele_tags["oop_toggle"]
     local value = evt_ele_tags["value"]
@@ -421,7 +484,7 @@ function gui.on_click(event, player, player_data)
     end
 
     player_data.choices[value.."_choice"] = not last_value
-    event.element.style = style_helper_selection(not last_value)
+    event.element.toggled = not last_value
     if evt_ele_tags.refresh then update_selections(player) end
   end
 end

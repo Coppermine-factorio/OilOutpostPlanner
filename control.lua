@@ -1,3 +1,4 @@
+local util = require("util")
 local gui = require("gui")
 local layout = require("layout")
 
@@ -20,8 +21,11 @@ local function get_player_config(player)
       gui = {
         section = {},
         tables = {},
+        quality_selections = {},
         selections = {},
       },
+
+      qualities = {},
     }
   end
   return storage.players[player_index]

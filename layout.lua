@@ -62,6 +62,7 @@ local function ForceGhostAt(args)
   local name = args.name
   local position = args.position
   local direction = args.direction
+  local quality = args.quality
   local player = args.player
 
   new_entity = surface.create_entity{
@@ -69,6 +70,7 @@ local function ForceGhostAt(args)
     inner_name=name,
     position=position,
     direction=direction,
+    quality=quality,
     raise_built=true,
     force=player.force,
     player=player,
@@ -828,6 +830,7 @@ function layout.Plan(player, player_data, entities)
   local chosen_entity_name
   local resource_category
   local choice_key
+  local quality_key
 
   for _, entity in ipairs(entities)
   do
@@ -840,6 +843,7 @@ function layout.Plan(player, player_data, entities)
       then
         resource_category = entity_proto.resource_category
         choice_key = resource_category.."_pumpjack_choice"
+        quality_key = resource_category.."_pumpjack"
         if player_data.choices[choice_key]
         then
           --player.print("Found oil!")
@@ -893,11 +897,21 @@ function layout.Plan(player, player_data, entities)
     entities_require_heating = planet.prototype.entities_require_heating
   end
 
+  -- Fetch all the player's choices for entities
+  local pumpjack_type = player_data.choices[choice_key]
   local pipe_type = player_data.choices["pipe_choice"]
   local underground_pipe_type = player_data.choices["pipe-to-ground_choice"]
-  local pumpjack_type = player_data.choices[choice_key]
   local heat_pipe_type = "heat-pipe"
+  local power_pole_type = player_data.choices.pole_choice
 
+  local default_quality = util.get_default_quality().name
+  local pumpjack_quality = player_data.qualities[quality_key] or default_quality
+  local pipe_quality = player_data.qualities["pipe"] or default_quality
+  local underground_pipe_quality = player_data.qualities["pipe-to-ground"] or default_quality
+  local heat_pipe_quality = default_quality
+  local power_pole_quality = player_data.qualities["pole"] or default_quality
+
+  -- Figure out other properties of the chosen entities
   local underground_proto
   local min_underground_distance
   local max_underground_distance
@@ -1042,6 +1056,7 @@ function layout.Plan(player, player_data, entities)
       name=pumpjack_type,
       position=position,
       direction=direction,
+      quality=pumpjack_quality,
       player=player,
     }
     table.insert(ghosts, ghost)
@@ -1053,6 +1068,7 @@ function layout.Plan(player, player_data, entities)
       surface=surface,
       name=pipe_type,
       position=pipe_pos,
+      quality=pipe_quality,
       player=player,
     }
     forbidden_points[Pos2Str(pipe_pos)] = true
@@ -1069,6 +1085,7 @@ function layout.Plan(player, player_data, entities)
       name=underground_pipe_type,
       position=pos,
       direction=direction,
+      quality=underground_pipe_quality,
       player=player,
     }
     forbidden_points[Pos2Str(pos)] = true
@@ -1098,6 +1115,7 @@ function layout.Plan(player, player_data, entities)
         surface=surface,
         name=heat_pipe_type,
         position=pos,
+        quality=heat_pipe_quality,
         player=player,
       }
       forbidden_points[Pos2Str(pos)] = true
@@ -1106,19 +1124,16 @@ function layout.Plan(player, player_data, entities)
   end
 
   -- Now pumpjacks and pipes are complete, the final step is to add power poles
-  local power_pole_type = player_data.choices.pole_choice
-
   if power_pole_type == "none"
   then
     return
   end
 
   local power_pole_proto = prototypes.entity[power_pole_type]
-  -- TODO: if we want to suport quality power poles, we need to pass quality
-  -- to get_max_wire_distance and get_supply_area_distance
-  local wire_reach = power_pole_proto.get_max_wire_distance()
+  local wire_reach = power_pole_proto.get_max_wire_distance(power_pole_quality)
   local target_to_pole_max = (
-    power_pole_proto.get_supply_area_distance() + pumpjack_radius - 1)
+    power_pole_proto.get_supply_area_distance(power_pole_quality)
+    + pumpjack_radius - 1)
 
   result = FindPowerPolePositions{
     bounds=bounds,
@@ -1143,6 +1158,7 @@ function layout.Plan(player, player_data, entities)
       surface=surface,
       name=power_pole_type,
       position=pole_pos,
+      quality=power_pole_quality,
       player=player,
     }
     table.insert(ghosts, ghost)
