@@ -14,6 +14,9 @@ fi
 
 cd ..
 
-swap_files=$(find $dirname -name '*.sw[po]')
+exclude_files="$(find $dirname -name '*.sw[po]' -printf '-x %p\n')"
+exclude_files+="$(
+  find $dirname -maxdepth 1 -name '*.png' -a -not -name thumbnail.png \
+  -printf '-x %p\n')"
 
-zip -r "$full_release_path" $dirname/[^.rT]* ${swap_files:+-x} $swap_files
+zip -r "$full_release_path" $dirname/[^.rT]* $exclude_files
