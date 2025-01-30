@@ -313,7 +313,7 @@ end
 local function update_entity_selection(args)
   local player_data = args.player_data
   local filter_type = args.filter_type
-  local max_size = max_size
+  local max_size = args.max_size
   local table_key = args.table_key
   local allow_none = args.allow_none
 
@@ -348,7 +348,7 @@ local function update_entity_selection(args)
     if blacklist[entity_proto.name] then goto skip_entity_proto end
     local cbox = entity_proto.collision_box
     local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
-    if size > 1 then goto skip_entity_proto end
+    if size > max_size then goto skip_entity_proto end
 
     table.insert(values, {
       value=entity_proto.name,
@@ -383,7 +383,7 @@ local function update_pole_selection(player_data)
   update_entity_selection{
     player_data=player_data,
     filter_type="electric-pole",
-    max_size=1,
+    max_size=2,
     table_key="pole",
     allow_none=true,
   }

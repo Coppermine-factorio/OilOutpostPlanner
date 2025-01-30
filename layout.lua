@@ -756,6 +756,7 @@ local function FindPowerPolePositions(args)
   local forbidden = args.forbidden
   local entity_to_pole_max = args.entity_to_pole_max
   local wire_reach = args.wire_reach
+  local size = args.size
 
   local subtarget_offsets = {}
   for x = -entity_to_pole_max,entity_to_pole_max
@@ -792,7 +793,8 @@ local function FindPowerPolePositions(args)
     for y = -wire_reach_int,wire_reach_int
     do
       local square_distance = x * x + y * y
-      if square_distance <= squared_wire_reach
+      local max_distance = math.max(x, y)
+      if square_distance <= squared_wire_reach and max_distance > size
       then
         local pos = { x = x, y = y }
         table.insert(pole_adjacency, pos)
@@ -804,11 +806,35 @@ local function FindPowerPolePositions(args)
     -- Nothing to do
   end
 
+  local offset_forbidden = forbidden
+  -- When the power pole size is 2, we need to replace every entry in forbidden
+  -- with four neighbours offset by a half unit in each direction
+  if size == 2
+  then
+    offset_forbidden = {}
+    local offsets = {
+      { x = 0.5, y = 0.5 },
+      { x = 0.5, y = -0.5 },
+      { x = -0.5, y = 0.5 },
+      { x = -0.5, y = -0.5 },
+    }
+    for pos_str, _ in pairs(forbidden)
+    do
+      pos = Str2Pos(pos_str)
+
+      for _, offset in pairs(offsets)
+      do
+        local offset_pos = { x = pos.x + offset.x, y = pos.y + offset.y }
+        offset_forbidden[Pos2Str(offset_pos)] = true
+      end
+    end
+  end
+
   tree_result = SolveSteinerTree{
     targets=targets,
     adjacency=pole_adjacency,
     bounds=bounds,
-    forbidden=forbidden,
+    forbidden=offset_forbidden,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
   }
@@ -927,7 +953,9 @@ function layout.Plan(player, player_data, entities)
   local pumpjack_proto = prototypes.entity[pumpjack_type]
   local pumpjack_radius = pumpjack_proto.selection_box.right_bottom.x
   local pumpjack_radius_int = math.floor(pumpjack_radius)
-  local padding = pumpjack_radius_int + 2
+  -- Worst case padding requries 1 tile for a pipe, 1 tile for a heat pipe, and
+  -- two tiles for a power pole, so 4 more than pumpjack radius
+  local padding = pumpjack_radius_int + 4
 
   local output_fluidboxes = {}
   for _, fluidbox in pairs(pumpjack_proto.fluidbox_prototypes)
@@ -1134,6 +1162,9 @@ function layout.Plan(player, player_data, entities)
   local target_to_pole_max = (
     power_pole_proto.get_supply_area_distance(power_pole_quality)
     + pumpjack_radius - 1)
+  local power_pole_cbox = power_pole_proto.collision_box
+  local power_pole_size = math.ceil(
+    power_pole_cbox.right_bottom.x - power_pole_cbox.left_top.x)
 
   result = FindPowerPolePositions{
     bounds=bounds,
@@ -1141,6 +1172,7 @@ function layout.Plan(player, player_data, entities)
     forbidden=forbidden_points,
     entity_to_pole_max=target_to_pole_max,
     wire_reach=wire_reach,
+    size=power_pole_size,
     debug=player.print
   }
 
