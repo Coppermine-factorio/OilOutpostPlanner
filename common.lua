@@ -50,6 +50,13 @@ common.simple_entity_selections = {
     max_size=2,
     allow_none=true
   },
+  {
+    name="heat-pipe",
+    filter_type="heat-pipe",
+    default="heat-pipe",
+    max_size=1,
+    allow_none=true
+  },
 }
 
 return common

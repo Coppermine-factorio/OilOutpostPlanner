@@ -929,14 +929,14 @@ function layout.Plan(player, player_data, entities)
   local pumpjack_type = player_data.choices[choice_key]
   local pipe_type = player_data.choices["pipe_choice"]
   local underground_pipe_type = player_data.choices["pipe-to-ground_choice"]
-  local heat_pipe_type = "heat-pipe"
+  local heat_pipe_type = player_data.choices["heat-pipe_choice"]
   local power_pole_type = player_data.choices.pole_choice
 
   local default_quality = common.get_default_quality().name
   local pumpjack_quality = player_data.qualities[quality_key] or default_quality
   local pipe_quality = player_data.qualities["pipe"] or default_quality
   local underground_pipe_quality = player_data.qualities["pipe-to-ground"] or default_quality
-  local heat_pipe_quality = default_quality
+  local heat_pipe_quality = player_data.qualities["heat-pipe"] or default_quality
   local power_pole_quality = player_data.qualities["pole"] or default_quality
 
   -- Figure out other properties of the chosen entities
@@ -1123,7 +1123,7 @@ function layout.Plan(player, player_data, entities)
   end
 
   -- Next step is to add heat pipes, but only if the surface requires them
-  if entities_require_heating
+  if entities_require_heating and heat_pipe_type ~= "none"
   then
     local result = FindHeatPipePaths{
       bounds=bounds,
