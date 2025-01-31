@@ -1,5 +1,5 @@
 local blacklist = require("blacklist")
-local util = require("util")
+local common = require("common")
 
 local gui = {}
 
@@ -21,7 +21,7 @@ local function create_setting_section(player_data, root, name, opts)
     type="flow",
     direction=opts.direction or "horizontal",
   }
-  local qualities = util.get_visible_qualities()
+  local qualities = common.get_visible_qualities()
   if #qualities > 0
   then
     local selected_quality = player_data.qualities[name]
@@ -221,14 +221,10 @@ function gui.create_interface(player, player_data)
     )
   end
 
-  -- Pipe selection
-  create_setting_section(player_data, frame, "pipe")
-
-  -- Pipe-to-ground selection
-  create_setting_section(player_data, frame, "pipe-to-ground")
-
-  -- Electric pole selection
-  create_setting_section(player_data, frame, "pole")
+  for _, simple_entity_selection in pairs(common.simple_entity_selections)
+  do
+    create_setting_section(player_data, frame, simple_entity_selection.name)
+  end
 end
 
 local function update_pumpjack_selection(player_data)
@@ -317,6 +313,8 @@ local function update_entity_selection(args)
   local table_key = args.table_key
   local allow_none = args.allow_none
 
+  --args.debug("filter_type = "..filter_type..", max_size = "..max_size)
+
   local choices = player_data.choices
   local existing_choice_key = table_key.."_choice"
   local existing_choice = choices[existing_choice_key]
@@ -348,7 +346,10 @@ local function update_entity_selection(args)
     if blacklist[entity_proto.name] then goto skip_entity_proto end
     local cbox = entity_proto.collision_box
     local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
-    if size > max_size then goto skip_entity_proto end
+    if size > max_size
+    then
+      goto skip_entity_proto
+    end
 
     table.insert(values, {
       value=entity_proto.name,
@@ -379,38 +380,8 @@ local function update_entity_selection(args)
   )
 end
 
-local function update_pole_selection(player_data)
-  update_entity_selection{
-    player_data=player_data,
-    filter_type="electric-pole",
-    max_size=2,
-    table_key="pole",
-    allow_none=true,
-  }
-end
-
-local function update_pipe_selection(player_data)
-  update_entity_selection{
-    player_data=player_data,
-    filter_type="pipe",
-    max_size=1,
-    table_key="pipe",
-    allow_none=false,
-  }
-end
-
-local function update_pipe_to_ground_selection(player_data)
-  update_entity_selection{
-    player_data=player_data,
-    filter_type="pipe-to-ground",
-    max_size=1,
-    table_key="pipe-to-ground",
-    allow_none=true,
-  }
-end
-
 local function update_quality_visibility(force, player_data)
-  local unlocked_qualities = util.get_unlocked_qualities(force)
+  local unlocked_qualities = common.get_unlocked_qualities(force)
   local any_visible = #unlocked_qualities > 1
 
   for _, quality_buttons in pairs(player_data.gui.quality_selections)
@@ -424,9 +395,19 @@ end
 
 local function update_selections(player, player_data)
   update_pumpjack_selection(player_data)
-  update_pipe_selection(player_data)
-  update_pipe_to_ground_selection(player_data)
-  update_pole_selection(player_data)
+
+  for _, simple_entity_selection in pairs(common.simple_entity_selections)
+  do
+    update_entity_selection{
+      player_data=player_data,
+      filter_type=simple_entity_selection.filter_type,
+      max_size=simple_entity_selection.max_size,
+      table_key=simple_entity_selection.name,
+      allow_none=simple_entity_selection.allow_none,
+      debug=player.print,
+    }
+  end
+
   update_quality_visibility(player.force, player_data)
 end
 
@@ -464,7 +445,7 @@ function gui.on_click(event, player, player_data)
 
     if last_value == nil
     then
-      last_value = util.get_default_quality().name
+      last_value = common.get_default_quality().name
     end
 
     player_data.gui.quality_selections[name][last_value].toggled = false

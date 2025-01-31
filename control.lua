@@ -1,4 +1,4 @@
-local util = require("util")
+local common = require("common")
 local gui = require("gui")
 local layout = require("layout")
 
@@ -10,13 +10,16 @@ local function get_player_config(player)
   end
   if storage.players[player_index] == nil
   then
+    local default_choices = {
+      ["basic-fluid_pumpjack_choice"] = "pumpjack",
+    }
+    for _, selection in pairs(common.simple_entity_selections)
+    do
+      default_choices[selection.name.."_choice"] = selection.default
+    end
+
     storage.players[player_index] = {
-      choices = {
-        pipe_choice = "pipe",
-        ["pipe-to-ground_choice"] = "pipe-to-ground",
-        pole_choice = "medium-electric-pole",
-        ["basic-fluid_pumpjack_choice"] = "pumpjack",
-      },
+      choices = default_choices,
 
       gui = {
         section = {},

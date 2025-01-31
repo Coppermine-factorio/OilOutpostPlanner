@@ -1,3 +1,5 @@
+local common = require("common")
+
 local layout = {}
 
 local orthogonal_neighbours = {
@@ -930,7 +932,7 @@ function layout.Plan(player, player_data, entities)
   local heat_pipe_type = "heat-pipe"
   local power_pole_type = player_data.choices.pole_choice
 
-  local default_quality = util.get_default_quality().name
+  local default_quality = common.get_default_quality().name
   local pumpjack_quality = player_data.qualities[quality_key] or default_quality
   local pipe_quality = player_data.qualities["pipe"] or default_quality
   local underground_pipe_quality = player_data.qualities["pipe-to-ground"] or default_quality
