@@ -42,14 +42,23 @@ local function create_setting_section(player_data, root, name, opts)
     for _, quality in pairs(qualities)
     do
       local quality_button = quality_root.add{
-        type="button",
-        caption="[quality="..quality.name.."]",
-        style="tool_button",
+        type="sprite-button",
+        tooltip=wrap_tooltip(quality.localised_name),
+        style="tool_button_without_padding",
         tags={
           oop_set_quality=name,
           value=quality.name,
         },
       }
+      local sprite = quality_button.add{
+        type="sprite",
+        resize_to_sprite=false,
+        sprite="quality/"..quality.name,
+        ignored_by_interaction=true,
+      }
+      -- I tried to set this size relative to the size of the style used for
+      -- quality_button, but I can't seem to access that information.
+      sprite.style.size = 20
       quality_button.visible = false
       quality_button.toggled = selected_quality == quality.name
       quality_buttons[quality.name] = quality_button
