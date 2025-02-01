@@ -85,17 +85,38 @@ script.on_event(
 
 script.on_event(defines.events.on_player_changed_surface, cursor_stack_check)
 
+local function reset_gui(player)
+  local frame = player.gui.screen["oop_settings_frame"]
+  if frame
+  then
+    frame.destroy()
+  end
+end
+
+local function reset_all_guis()
+  for _, player in pairs(game.players)
+  do
+    reset_gui(player)
+  end
+end
+
 script.on_configuration_changed(function(config_changed_data)
   -- Reset all our global state to defaults
   game.print({"oil-outpost-planner.msg_config_change"})
   storage.players = nil
 
-  for _, player in pairs(game.players)
-  do
-    local frame = player.gui.screen["oop_settings_frame"]
-    if frame
-    then
-      frame.destroy()
-    end
+  reset_all_guis()
+end)
+
+script.on_event(defines.events.on_runtime_mod_setting_changed,
+function(setting_changed_data)
+  local player_index = setting_changed_data.player_index
+  local is_global = setting_changed_data.setting_type == "runtime-global"
+  if player_index == nil or is_global
+  then
+    reset_all_guis()
+  else
+    player = game.players[player_index]
+    reset_gui(player)
   end
 end)

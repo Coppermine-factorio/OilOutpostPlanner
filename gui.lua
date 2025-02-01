@@ -19,7 +19,7 @@ local function create_setting_section(player_data, root, name, opts)
   }
   local this_row = section.add{
     type="flow",
-    direction=opts.direction or "horizontal",
+    direction="vertical",
   }
   local qualities = common.get_visible_qualities()
   if #qualities > 0
@@ -57,11 +57,12 @@ local function create_setting_section(player_data, root, name, opts)
 
     player_data.gui.quality_selections[name] = quality_buttons
   end
+
   local table_root = this_row.add{
     type="table",
     direction=opts.direction or "horizontal",
     style="filter_slot_table",
-    column_count=opts.column_count or 6,
+    column_count=opts.column_count or 10,
   }
   player_data.gui.tables[name] = table_root
   return table_root, section
@@ -129,6 +130,10 @@ local function create_setting_selector(
 end
 
 function gui.create_interface(player, player_data)
+  local setting = player.mod_settings["oil-outpost-planner-num-columns"]
+  local num_columns = setting.value or 10
+  num_columns = math.max(1, num_columns)
+
   local frame = player.gui.screen.add{
     type="frame",
     name="oop_settings_frame",
@@ -151,6 +156,11 @@ function gui.create_interface(player, player_data)
     type="empty-widget",
     name="oop_titlebar_spacer",
     horizontally_strechable=true
+  }
+
+  local scroll_pane = frame.add{
+    type="scroll-pane",
+    name="scroll_pane",
   }
   --player_gui.advanced_settings = titlebar.add{
   --  type="sprite-button",
@@ -215,15 +225,20 @@ function gui.create_interface(player, player_data)
     caption = { "oil-outpost-planner.settings_pumpjack_label", list }
     create_setting_section(
       player_data,
-      frame,
+      scroll_pane,
       resource_type.."_pumpjack",
-      { caption=caption }
+      { caption=caption, column_count=num_columns }
     )
   end
 
   for _, simple_entity_selection in pairs(common.simple_entity_selections)
   do
-    create_setting_section(player_data, frame, simple_entity_selection.name)
+    create_setting_section(
+      player_data,
+      scroll_pane,
+      simple_entity_selection.name,
+      { column_count=num_columns }
+    )
   end
 end
 
