@@ -323,10 +323,12 @@ end
 
 local function update_entity_selection(args)
   local player_data = args.player_data
-  local filter_type = args.filter_type
-  local max_size = args.max_size
-  local table_key = args.table_key
-  local allow_none = args.allow_none
+  local entity_selection = args.entity_selection
+  local filter_type = entity_selection.filter_type
+  local max_size = entity_selection.max_size
+  local table_key = entity_selection.name
+  local predicate = entity_selection.predicate
+  local allow_none = entity_selection.allow_none
 
   --args.debug("filter_type = "..filter_type..", max_size = "..max_size)
 
@@ -362,6 +364,11 @@ local function update_entity_selection(args)
     local cbox = entity_proto.collision_box
     local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
     if size > max_size
+    then
+      goto skip_entity_proto
+    end
+
+    if predicate and not predicate(entity_proto)
     then
       goto skip_entity_proto
     end
@@ -415,10 +422,7 @@ local function update_selections(player, player_data)
   do
     update_entity_selection{
       player_data=player_data,
-      filter_type=simple_entity_selection.filter_type,
-      max_size=simple_entity_selection.max_size,
-      table_key=simple_entity_selection.name,
-      allow_none=simple_entity_selection.allow_none,
+      entity_selection=simple_entity_selection,
       debug=player.print,
     }
   end
