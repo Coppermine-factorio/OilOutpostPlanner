@@ -215,7 +215,7 @@ function gui.create_interface(player, player_data)
           then
             entities_by_resource_type[category] = {}
           end
-          table.insert(entities_by_resource_type[category], resource_proto.name)
+          table.insert(entities_by_resource_type[category], resource_proto)
           break
         end
       end
@@ -227,13 +227,13 @@ function gui.create_interface(player, player_data)
   for resource_type, entities in pairs(entities_by_resource_type)
   do
     list = { "" }
-    for _, entity in pairs(entities)
+    for _, resource_proto in pairs(entities)
     do
       if #list > 1
       then
         table.insert(list, ", ")
       end
-      table.insert(list, {"entity-name."..entity})
+      table.insert(list, resource_proto.localised_name)
     end
 
     caption = { "oil-outpost-planner.settings_pumpjack_label", list }
