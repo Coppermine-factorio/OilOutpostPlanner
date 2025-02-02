@@ -550,7 +550,7 @@ local function SolveSteinerTree(args)
       if nearest_target_to[path_node_str] == nil
       then
         table.insert(t1_neighbourhood, { pos=path_node, distance=1 })
-        nearest_target_to[path_node_str] = { target=t1, distance=1 }
+        nearest_target_to[path_node_str] = { target=t1 }
       else
         assert(
           nearest_target_to[path_node_str].target == t1,
