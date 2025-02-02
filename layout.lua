@@ -164,6 +164,21 @@ local function AddLandfillUnder(args)
   end
 end
 
+local function ForbidPointsInRadius(args)
+  local pos=args.pos
+  local radius=args.radius
+  local forbidden_points = args.forbidden_points
+
+  for off_x=-radius,radius
+  do
+    for off_y=-radius,radius
+    do
+      local offset_pos = { x = pos.x + off_x, y = pos.y + off_y}
+      forbidden_points[Pos2Str(offset_pos)] = true
+    end
+  end
+end
+
 local function AddForbiddenPoints(args)
   local min_x = args.bounds.min_x
   local min_y = args.bounds.min_y
@@ -529,10 +544,19 @@ local function SolveSteinerTree(args)
 
     for _, path_node in pairs(this_path)
     do
-      table.insert(t1_neighbourhood, { pos=path_node, distance=1 })
       path_node_str = Pos2Str(path_node)
-      nearest_target_to[path_node_str] = { target=t1 }
       paths[path_node_str] = path_node
+
+      if nearest_target_to[path_node_str] == nil
+      then
+        table.insert(t1_neighbourhood, { pos=path_node, distance=1 })
+        nearest_target_to[path_node_str] = { target=t1, distance=1 }
+      else
+        assert(
+          nearest_target_to[path_node_str].target == t1,
+          "target = "..t1..", nearest_target_to[path_node_str] = "
+            ..serpent.line(nearest_target_to[path_node_str]))
+      end
 
       if debug_viz_surface ~= nil
       then
@@ -732,7 +756,6 @@ local function FindHeatPipePaths(args)
     local entity_proto = entity.ghost_prototype
     local entity_radius = entity_proto.selection_box.right_bottom.x
     local heat_pipe_range = entity_radius + 0.5
-    --local pumpjack_radius_int = math.floor(pumpjack_radius)
 
     local subtargets = {}
     for x = -heat_pipe_range,heat_pipe_range
@@ -775,38 +798,205 @@ local function FindHeatPipePaths(args)
   }
 end
 
-local function FindPowerPolePositions(args)
+local function FindBeaconLocations(args)
+  local surface = args.surface
   local bounds = args.bounds
-  local entities = args.entities
+  local beacon_name = args.beacon_name
+  local quality = args.quality
+  local target_entities = args.entities
   local forbidden = args.forbidden
-  local entity_to_pole_max = args.entity_to_pole_max
-  local wire_reach = args.wire_reach
-  local size = args.size
+  local entity_radius = args.entity_radius
 
-  local subtarget_offsets = {}
-  for x = -entity_to_pole_max,entity_to_pole_max
+  local beacon_proto = prototypes.entity[beacon_name]
+  local beacon_radius = beacon_proto.selection_box.right_bottom.x
+  local beacon_to_entity_max = (
+    beacon_proto.get_supply_area_distance(quality)
+    + beacon_radius + entity_radius - 1)
+  local profile = beacon_proto.profile
+
+  -- We do a simple greedy search, choosing the best beacon position first and
+  -- working down to the worst.
+
+  -- Step 1: Assemble a list of potential positions, together with the set of
+  -- entities they touch
+
+  beacon_candidates = {}
+  for x = bounds.min_x,bounds.max_x
   do
-    for y = -entity_to_pole_max,entity_to_pole_max
+    for y = bounds.min_y,bounds.max_y
     do
-      local pos = { x = x, y = y }
-      table.insert(subtarget_offsets, pos)
+      local pos = {x = x, y = y}
+      if not surface.can_place_entity{
+        name=beacon_name,
+        position=pos,
+        force=force,
+        build_check_type=defines.build_check_type.blueprint_ghost,
+        forced=true,
+      }
+      then
+        goto skip_pos
+      end
+
+      matching_targets = {}
+      for _, target_pos in pairs(target_entities)
+      do
+        local max_dist = math.max(
+          math.abs(x - target_pos.x), math.abs(y - target_pos.y)
+        )
+        if max_dist <= beacon_to_entity_max
+        then
+          table.insert(matching_targets, target_pos)
+        end
+      end
+
+      if #matching_targets > 0
+      then
+        table.insert(
+          beacon_candidates,
+          { pos=pos, targets=matching_targets }
+        )
+      end
+
+      ::skip_pos::
     end
   end
-  table.sort(subtarget_offsets, function(l, r)
-    return l.x * l.x + l.y * l.y < r.x * r.x + r.y * r.y
-  end)
+
+  -- Step 2: Keep track of how many beacons currently placed affect each
+  -- target
+  local target_counts = {}
+  for _, target in pairs(target_entities)
+  do
+    target_counts[target] = 0
+  end
+
+  -- Step 3: Sort the candidates by their effect
+  local function score_candidate(candidate)
+    local tally = 0
+    for _, target in pairs(candidate.targets)
+    do
+      local target_count = target_counts[target]
+      local current = 0
+      if target_count > 0
+      then
+        current = profile[target_count] * target_count
+      end
+      local new = profile[target_count + 1] * (target_count + 1)
+      local add = new - current
+      tally = tally + add
+    end
+    return tally
+  end
+
+  local function compare_candidates(l, r)
+    return score_candidate(l) > score_candidate(r)
+  end
+
+  -- Step 4: Grab candidates until their score falls below some threshold
+  local beacon_poss = {}
+  local score_threshold = 2
+  local last_added_pos = nil
+
+  while true
+  do
+    -- Filter out anything where the score is below the threshold or it's too
+    -- close the the one we last added
+    local new_candidates = {}
+    for _, candidate in pairs(beacon_candidates)
+    do
+      if score_candidate(candidate) < score_threshold
+      then
+        goto skip_candidate
+      end
+
+      if last_added_pos ~= nil
+      then
+        local this_pos = candidate.pos
+        local max_dist = math.max(
+          math.abs(this_pos.x - last_added_pos.x),
+          math.abs(this_pos.y - last_added_pos.y)
+        )
+        if max_dist < 2 * beacon_radius
+        then
+          goto skip_candidate
+        end
+      end
+
+      table.insert(new_candidates, candidate)
+
+      ::skip_candidate::
+    end
+    beacon_candidates = new_candidates
+
+    table.sort(beacon_candidates, compare_candidates)
+
+    if #beacon_candidates == 0
+    then
+      break
+    end
+
+    local chosen = beacon_candidates[1]
+    last_added_pos = chosen.pos
+    --args.debug("Adding beacon at "..serpent.line(last_added_pos).." with "..#chosen.targets.." neighbours and score "..score_candidate(chosen))
+    table.insert(beacon_poss, last_added_pos)
+
+    -- Increment the counts for all the relevant targets
+    for _, target in pairs(chosen.targets)
+    do
+      target_counts[target] = target_counts[target] + 1
+    end
+  end
+
+  return {
+    beacon_poss=beacon_poss
+  }
+end
+
+local function FindPowerPolePositions(args)
+  local bounds = args.bounds
+  local entity_sets = args.targets
+  local forbidden = args.forbidden
+  local wire_reach = args.wire_reach
+  local supply_distance = args.supply_distance
+  local size = args.size
+  local debug_viz_surface = args.debug_viz_surface
 
   local targets = {}
 
-  for _, entity in pairs(entities)
+  for _, entity_set in pairs(entity_sets)
   do
-    local subtargets = {}
-    for _, offset in pairs(subtarget_offsets)
-    do
-      local pos = { x = entity.x + offset.x, y = entity.y + offset.y }
-      table.insert(subtargets, pos)
+    if #entity_set.poss == 0
+    then
+      goto skip_entity_set
     end
-    table.insert(targets, subtargets)
+
+    local radius = entity_set.radius
+    assert(radius ~= nil, "Bad entity set "..serpent.line(entity_set))
+    local entity_to_pole_max = supply_distance + radius - 1
+    local subtarget_offsets = {}
+    for x = -entity_to_pole_max,entity_to_pole_max
+    do
+      for y = -entity_to_pole_max,entity_to_pole_max
+      do
+        local pos = { x = x, y = y }
+        table.insert(subtarget_offsets, pos)
+      end
+    end
+    table.sort(subtarget_offsets, function(l, r)
+      return l.x * l.x + l.y * l.y < r.x * r.x + r.y * r.y
+    end)
+
+    for _, entity_pos in pairs(entity_set.poss)
+    do
+      local subtargets = {}
+      for _, offset in pairs(subtarget_offsets)
+      do
+        local pos = { x = entity_pos.x + offset.x, y = entity_pos.y + offset.y }
+        table.insert(subtargets, pos)
+      end
+      table.insert(targets, subtargets)
+    end
+
+    ::skip_entity_set::
   end
 
   local squared_wire_reach = wire_reach * wire_reach
@@ -954,6 +1144,7 @@ function layout.Plan(player, player_data, entities)
   local pipe_type = player_data.choices["pipe_choice"]
   local underground_pipe_type = player_data.choices["pipe-to-ground_choice"]
   local heat_pipe_type = player_data.choices["heat-pipe_choice"]
+  local beacon_type = player_data.choices.beacon_choice
   local power_pole_type = player_data.choices.pole_choice
 
   local default_quality = common.get_default_quality().name
@@ -961,6 +1152,7 @@ function layout.Plan(player, player_data, entities)
   local pipe_quality = player_data.qualities["pipe"] or default_quality
   local underground_pipe_quality = player_data.qualities["pipe-to-ground"] or default_quality
   local heat_pipe_quality = player_data.qualities["heat-pipe"] or default_quality
+  local beacon_quality = player_data.qualities["beacon"] or default_quality
   local power_pole_quality = player_data.qualities["pole"] or default_quality
 
   -- Figure out other properties of the chosen entities
@@ -979,6 +1171,16 @@ function layout.Plan(player, player_data, entities)
   local pumpjack_proto = prototypes.entity[pumpjack_type]
   local pumpjack_radius = pumpjack_proto.selection_box.right_bottom.x
   local pumpjack_radius_int = math.floor(pumpjack_radius)
+
+  local beacon_proto = prototypes.entity[beacon_type]
+  local beacon_radius
+  local beacon_radius_int
+  if beacon_type ~= "none"
+  then
+    beacon_radius = beacon_proto.selection_box.right_bottom.x
+    beacon_radius_int = math.floor(beacon_radius)
+  end
+
   -- Worst case padding requries 1 tile for a pipe, 1 tile for a heat pipe, and
   -- two tiles for a power pole, so 4 more than pumpjack radius
   local padding = pumpjack_radius_int + 4
@@ -1042,14 +1244,11 @@ function layout.Plan(player, player_data, entities)
     end
     table.insert(out_pipe_sets, subtargets)
 
-    for off_x=-pumpjack_radius_int,pumpjack_radius_int
-    do
-      for off_y=-pumpjack_radius_int,pumpjack_radius_int
-      do
-        local offset_pos = { x = pos.x + off_x, y = pos.y + off_y}
-        forbidden_points[Pos2Str(offset_pos)] = true
-      end
-    end
+    ForbidPointsInRadius{
+      pos=pos,
+      radius=pumpjack_radius_int,
+      forbidden_points=forbidden_points,
+    }
 
     min_x = math.min(min_x, pos.x - padding)
     min_y = math.min(min_y, pos.y - padding)
@@ -1177,7 +1376,46 @@ function layout.Plan(player, player_data, entities)
     end
   end
 
-  -- Now pumpjacks and pipes are complete, the final step is to add power poles
+  -- Next we add beacons (if requested).  This happens after heat pipes, so we
+  -- might end up with unheated beacons, but that is a problem for another day.
+  local beacon_poss = {}
+  if beacon_type ~= "none"
+  then
+    assert(beacon_radius_int ~= nil, "Nil radius")
+
+    local result = FindBeaconLocations{
+      surface=surface,
+      bounds=bounds,
+      beacon_name=beacon_type,
+      quality=beacon_quality,
+      entities=pumpjack_positions,
+      entity_radius=pumpjack_radius,
+      forbidden=forbidden_points,
+      debug=player.print
+    }
+
+    beacon_poss = result.beacon_poss
+    for _, pos in pairs(beacon_poss)
+    do
+      local ghost = ForceGhostAt{
+        surface=surface,
+        name=beacon_type,
+        position=pos,
+        quality=beacon_quality,
+        player=player,
+      }
+
+      ForbidPointsInRadius{
+        pos=pos,
+        radius=beacon_radius_int,
+        forbidden_points=forbidden_points,
+      }
+      table.insert(ghosts, ghost)
+    end
+  end
+
+  -- Now pumpjacks, pipes, and beacons are complete, the final step is to add
+  -- power poles
   if power_pole_type == "none"
   then
     return
@@ -1185,19 +1423,26 @@ function layout.Plan(player, player_data, entities)
 
   local power_pole_proto = prototypes.entity[power_pole_type]
   local wire_reach = power_pole_proto.get_max_wire_distance(power_pole_quality)
-  local target_to_pole_max = (
-    power_pole_proto.get_supply_area_distance(power_pole_quality)
-    + pumpjack_radius - 1)
+  local supply_distance = power_pole_proto.get_supply_area_distance(power_pole_quality)
   local power_pole_cbox = power_pole_proto.collision_box
   local power_pole_size = math.ceil(
     power_pole_cbox.right_bottom.x - power_pole_cbox.left_top.x)
 
   result = FindPowerPolePositions{
     bounds=bounds,
-    entities=pumpjack_positions,
+    targets={
+      {
+        poss=pumpjack_positions,
+        radius=pumpjack_radius
+      },
+      {
+        poss=beacon_poss,
+        radius=beacon_radius
+      },
+    },
     forbidden=forbidden_points,
-    entity_to_pole_max=target_to_pole_max,
     wire_reach=wire_reach,
+    supply_distance=supply_distance,
     size=power_pole_size,
     debug=player.print,
     --debug_viz_surface=surface,

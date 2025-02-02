@@ -133,6 +133,12 @@ common.simple_entity_selections = {
     allow_none=true
   },
   {
+    name="beacon",
+    filter_type="beacon",
+    default="none",
+    allow_none=true
+  },
+  {
     name="heat-pipe",
     filter_type="heat-pipe",
     default="heat-pipe",

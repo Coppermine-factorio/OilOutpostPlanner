@@ -377,7 +377,7 @@ local function update_entity_selection(args)
     if blacklist[entity_proto.name] then goto skip_entity_proto end
     local cbox = entity_proto.collision_box
     local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
-    if size > max_size
+    if max_size ~= nil and size > max_size
     then
       goto skip_entity_proto
     end
