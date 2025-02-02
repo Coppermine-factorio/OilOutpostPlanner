@@ -208,6 +208,28 @@ local function SolveSteinerTree(args)
   assert(min_y < max_y, "Invalid y range")
   assert(#targets, "Must have at least one target")
 
+  if debug_viz_surface ~= nil
+  then
+    for _, target in pairs(targets)
+    do
+      for i, subtarget in pairs(target)
+      do
+        local debug_pos = { x = subtarget.x + 0.25, y = subtarget.y }
+        local color = {1,1,1}
+        if forbidden[Pos2Str(subtarget)]
+        then
+          color = {1, 0, 0}
+        end
+        rendering.draw_text{
+          text="s",
+          surface=debug_viz_surface,
+          target=debug_pos,
+          color=color,
+        }
+      end
+    end
+  end
+
   -- Remove forbidden points from the targets
   for _, target in pairs(targets)
   do
@@ -514,10 +536,11 @@ local function SolveSteinerTree(args)
 
       if debug_viz_surface ~= nil
       then
+        local debug_pos = { x = path_node.x, y = path_node.y - path_index/8 }
         rendering.draw_text{
           text=tostring(path_index),
           surface=debug_viz_surface,
-          target=path_node,
+          target=debug_pos,
           color={1,1,1}
         }
       end
@@ -839,6 +862,7 @@ local function FindPowerPolePositions(args)
     forbidden=offset_forbidden,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
+    debug_viz_surface=debug_viz_surface,
   }
 
   if tree_result == nil
@@ -1175,7 +1199,8 @@ function layout.Plan(player, player_data, entities)
     entity_to_pole_max=target_to_pole_max,
     wire_reach=wire_reach,
     size=power_pole_size,
-    debug=player.print
+    debug=player.print,
+    --debug_viz_surface=surface,
   }
 
   if result == nil
