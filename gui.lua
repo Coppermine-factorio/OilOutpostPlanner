@@ -9,14 +9,19 @@ end
 
 local function create_setting_section(player_data, root, name, opts)
   opts = opts or {}
-  caption = opts.caption or {"oil-outpost-planner.settings_"..name.."_label"}
+  local caption = opts.caption or {"oil-outpost-planner.settings_"..name.."_label"}
+  local column_count = opts.column_count or 10
+  local width = math.max(column_count * 40, 150)
+
   local section = root.add{type="flow", direction="vertical"}
   player_data.gui.section[name] = section
-  section.add{
+  local subheading = section.add{
     type="label",
     style="subheader_caption_label",
     caption=caption
   }
+  subheading.style.single_line = false
+  subheading.style.maximal_width = width
   local this_row = section.add{
     type="flow",
     direction="vertical",
@@ -34,7 +39,7 @@ local function create_setting_section(player_data, root, name, opts)
       type="table",
       direction=opts.direction or "horizontal",
       style="slot_table",
-      column_count=#qualities,
+      column_count=column_count,
     }
 
     quality_buttons = {}
@@ -71,7 +76,7 @@ local function create_setting_section(player_data, root, name, opts)
     type="table",
     direction=opts.direction or "horizontal",
     style="filter_slot_table",
-    column_count=opts.column_count or 10,
+    column_count=column_count,
   }
   player_data.gui.tables[name] = table_root
   return table_root, section
