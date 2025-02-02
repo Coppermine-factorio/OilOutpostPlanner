@@ -177,7 +177,7 @@ local function AddForbiddenPoints(args)
   do
     for y = min_y,max_y
     do
-      pos = {x = x, y = y}
+      local pos = {x = x, y = y}
       if not surface.can_place_entity{
         name="pipe",
         position=pos,
@@ -275,7 +275,7 @@ local function SolveSteinerTree(args)
         then
           -- Two targets share a square where a path could start.
           -- Immediately pick the subtarget for both and merge their
-          -- target_neighbournoods accordinly
+          -- target_neighbournoods accordingly
           choose_subtarget(target_idx, subtarget_idx, subtarget)
           ClearNeighbourhood(target_idx)
 
@@ -468,7 +468,7 @@ local function SolveSteinerTree(args)
 
     -- Gather old distance-1 neighbourhoods for each marged target (but only
     -- for the chosen subtarget, when applicable)
-    local old_neighbouhoods = {}
+    local old_neighbourhoods = {}
     for _, t in pairs({t1, t2})
     do
       local t_neighbourhood = target_neighbourhoods[t]
@@ -485,7 +485,7 @@ local function SolveSteinerTree(args)
 
         if subtarget == nil or subtarget == chosen_subtargets[t]
         then
-          table.insert(old_neighbouhoods, { pos=neighbour.pos, distance=1 })
+          table.insert(old_neighbourhoods, { pos=neighbour.pos, distance=1 })
         end
       end
     end
@@ -495,7 +495,7 @@ local function SolveSteinerTree(args)
 
     -- Initialize the new neighbourhood as the union of the two old distance-1
     -- neighbourhoods and the path between them
-    target_neighbourhoods[t1] = old_neighbouhoods
+    target_neighbourhoods[t1] = old_neighbourhoods
     target_neighbourhood_index[t1] = 1
     local t1_neighbourhood = target_neighbourhoods[t1]
 
