@@ -17,7 +17,7 @@ local function create_setting_section(player_data, root, name, opts)
   player_data.gui.section[name] = section
   local subheading = section.add{
     type="label",
-    style="subheader_caption_label",
+    style="heading_2_label",
     caption=caption
   }
   subheading.style.single_line = false
