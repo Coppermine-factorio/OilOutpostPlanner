@@ -79,6 +79,12 @@ local function create_setting_section(player_data, root, name, opts)
     column_count=column_count,
   }
   player_data.gui.tables[name] = table_root
+
+  if opts.extra_fields
+  then
+    opts.extra_fields(this_row, player_data)
+  end
+
   return table_root, section
 end
 
@@ -251,7 +257,10 @@ function gui.create_interface(player, player_data)
       player_data,
       scroll_pane,
       simple_entity_selection.name,
-      { column_count=num_columns }
+      {
+        column_count=num_columns,
+        extra_fields=simple_entity_selection.extra_fields
+      }
     )
   end
 end
@@ -500,6 +509,15 @@ function gui.on_click(event, player, player_data)
     player_data.choices[value.."_choice"] = not last_value
     event.element.toggled = not last_value
     if evt_ele_tags.refresh then update_selections(player) end
+  end
+end
+
+function gui.on_text_changed(event, player, player_data)
+  local element = event.element
+
+  if element.name == "oop_min_beacon_utility"
+  then
+    player_data.min_beacon_utility = tonumber(event.text)
   end
 end
 

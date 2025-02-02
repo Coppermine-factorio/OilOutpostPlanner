@@ -806,6 +806,9 @@ local function FindBeaconLocations(args)
   local target_entities = args.entities
   local forbidden = args.forbidden
   local entity_radius = args.entity_radius
+  local score_threshold = args.min_beacon_utility
+
+  --args.debug("score_threshold = "..score_threshold)
 
   local beacon_proto = prototypes.entity[beacon_name]
   local beacon_radius = beacon_proto.selection_box.right_bottom.x
@@ -893,7 +896,6 @@ local function FindBeaconLocations(args)
 
   -- Step 4: Grab candidates until their score falls below some threshold
   local beacon_poss = {}
-  local score_threshold = 2
   local last_added_pos = nil
 
   while true
@@ -1383,6 +1385,12 @@ function layout.Plan(player, player_data, entities)
   then
     assert(beacon_radius_int ~= nil, "Nil radius")
 
+    local min_beacon_utility = player_data.min_beacon_utility
+    if min_beacon_utility == nil
+    then
+      min_beacon_utility = 2
+    end
+
     local result = FindBeaconLocations{
       surface=surface,
       bounds=bounds,
@@ -1390,6 +1398,7 @@ function layout.Plan(player, player_data, entities)
       quality=beacon_quality,
       entities=pumpjack_positions,
       entity_radius=pumpjack_radius,
+      min_beacon_utility=min_beacon_utility,
       forbidden=forbidden_points,
       debug=player.print
     }

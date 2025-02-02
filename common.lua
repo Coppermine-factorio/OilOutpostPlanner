@@ -108,6 +108,35 @@ local function is_regular_underground_pipe(entity_proto)
   return true
 end
 
+local function add_beacon_utility_field(flow, player_data)
+  local row = flow.add{
+    type="flow",
+    direction="horizontal",
+  }
+  local tooltip={"oil-outpost-planner.settings_beacon_utility_tooltip"}
+  row.add{
+    type="label",
+    caption={"oil-outpost-planner.settings_beacon_utility"},
+    tooltip=tooltip,
+  }
+  local utility_field = row.add{
+    type="textfield",
+    name="oop_min_beacon_utility",
+    tooltip=tooltip,
+    numeric=true,
+    allow_decimal=true,
+    lose_focus_on_confirm=true,
+  }
+
+  if player_data.min_beacon_utility == nil
+  then
+    player_data.min_beacon_utility = 2
+  end
+
+  local value = player_data.min_beacon_utility
+  utility_field.text = tostring(value)
+end
+
 common.simple_entity_selections = {
   {
     name="pipe",
@@ -136,6 +165,7 @@ common.simple_entity_selections = {
     name="beacon",
     filter_type="beacon",
     default="none",
+    extra_fields=add_beacon_utility_field,
     allow_none=true
   },
   {

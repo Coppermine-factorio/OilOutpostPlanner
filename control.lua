@@ -62,6 +62,16 @@ script.on_event(defines.events.on_gui_click, function(event)
 end
 )
 
+script.on_event(defines.events.on_gui_text_changed, function(event)
+  local player = game.get_player(event.player_index)
+  if not player then return end
+  local player_data = get_player_config(player)
+  if not player_data then return end
+
+  gui.on_text_changed(event, player, player_data)
+end
+)
+
 local function cursor_stack_check(e)
   local player = game.get_player(e.player_index)
   if not player then return end
