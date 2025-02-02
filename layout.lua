@@ -795,7 +795,7 @@ local function FindPowerPolePositions(args)
     for y = -wire_reach_int,wire_reach_int
     do
       local square_distance = x * x + y * y
-      local max_distance = math.max(x, y)
+      local max_distance = math.max(math.abs(x), math.abs(y))
       if square_distance <= squared_wire_reach and max_distance > size
       then
         local pos = { x = x, y = y }
