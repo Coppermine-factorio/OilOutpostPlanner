@@ -67,7 +67,7 @@ local function ForceGhostAt(args)
   local quality = args.quality
   local player = args.player
 
-  new_entity = surface.create_entity{
+  local new_entity = surface.create_entity{
     name="entity-ghost",
     inner_name=name,
     position=position,
@@ -78,7 +78,7 @@ local function ForceGhostAt(args)
     player=player,
   }
 
-  existing = surface.find_entities_filtered{
+  local existing = surface.find_entities_filtered{
     area=new_entity.bounding_box,
     collision_mask={"object", "rail", "transport_belt"}
   }
