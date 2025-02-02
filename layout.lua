@@ -61,26 +61,24 @@ end
 
 local function ForceGhostAt(args)
   local surface = args.surface
-  local name = args.name
+  local proto = args.proto
   local position = args.position
   local direction = args.direction
   local quality = args.quality
   local player = args.player
 
-  local new_entity = surface.create_entity{
-    name="entity-ghost",
-    inner_name=name,
-    position=position,
-    direction=direction,
-    quality=quality,
-    raise_built=true,
-    force=player.force,
-    player=player,
-  }
+  local force = player.force
+  local bbox = proto.collision_box
+  bbox.left_top.x = bbox.left_top.x + position.x
+  bbox.left_top.y = bbox.left_top.y + position.y
+  bbox.right_bottom.x = bbox.right_bottom.x + position.x
+  bbox.right_bottom.y = bbox.right_bottom.y + position.y
 
+  -- Remove real entities that would collide
   local existing = surface.find_entities_filtered{
-    area=new_entity.bounding_box,
-    collision_mask={"object", "rail", "transport_belt"}
+    area=bbox,
+    collision_mask=proto.collision_mask.layers,
+    force=force,
   }
   for _, entity in pairs(existing)
   do
@@ -89,6 +87,33 @@ local function ForceGhostAt(args)
       entity.order_deconstruction(player.force, player)
     end
   end
+
+  -- Then remove ghosts that would conflict
+  local existing = surface.find_entities_filtered{
+    area=bbox,
+    type="entity-ghost",
+    force=force,
+  }
+  for _, entity in pairs(existing)
+  do
+    if entity ~= new_entity
+    then
+      --args.debug("Removing ghost of "..entity.ghost_name.." due to "..proto.name)
+      entity.order_deconstruction(player.force, player)
+    end
+  end
+
+  -- Create the entity itself
+  local new_entity = surface.create_entity{
+    name="entity-ghost",
+    inner_name=proto.name,
+    position=position,
+    direction=direction,
+    quality=quality,
+    raise_built=true,
+    force=player.force,
+    player=player,
+  }
 
   return new_entity
 end
@@ -164,19 +189,59 @@ local function AddLandfillUnder(args)
   end
 end
 
-local function ForbidPointsInRadius(args)
-  local pos=args.pos
-  local radius=args.radius
-  local forbidden_points = args.forbidden_points
+-- Round down to the next odd multiple of 0.5
+local function FloorHalf(x)
+  return 0.5 + math.floor(x - 0.5)
+end
 
-  for off_x=-radius,radius
+-- Round up to the next odd multiple of 0.5
+local function CeilHalf(x)
+  return 0.5 + math.ceil(x - 0.5)
+end
+
+local function ForbidPointsInBox(args)
+  local pos=args.pos
+  local cbox = args.collision_box
+  local forbidden = args.forbidden
+
+  local min_x = CeilHalf(pos.x + cbox.left_top.x)
+  local max_x = FloorHalf(pos.x + cbox.right_bottom.x)
+  local min_y = CeilHalf(pos.y + cbox.left_top.y)
+  local max_y = FloorHalf(pos.y + cbox.right_bottom.y)
+
+  for x=min_x, max_x
   do
-    for off_y=-radius,radius
+    for y=min_y, max_y
     do
-      local offset_pos = { x = pos.x + off_x, y = pos.y + off_y}
-      forbidden_points[Pos2Str(offset_pos)] = true
+      local pos = { x = x, y = y }
+      forbidden[Pos2Str(pos)] = true
     end
   end
+end
+
+local function AnySpotForbidden(args)
+  local pos = args.position
+  local cbox = args.collision_box
+  local forbidden = args.forbidden
+
+  local min_x = CeilHalf(pos.x + cbox.left_top.x)
+  local max_x = FloorHalf(pos.x + cbox.right_bottom.x)
+  local min_y = CeilHalf(pos.y + cbox.left_top.y)
+  local max_y = FloorHalf(pos.y + cbox.right_bottom.y)
+
+  for x=min_x, max_x
+  do
+    for y=min_y, max_y
+    do
+      local pos = { x = x, y = y }
+      if forbidden[Pos2Str(pos)]
+      then
+        return true
+      end
+    end
+  end
+
+  return false
 end
 
 local function AddForbiddenPoints(args)
@@ -186,24 +251,49 @@ local function AddForbiddenPoints(args)
   local max_y = args.bounds.max_y
   local surface = args.surface
   local force = args.force
+  local player_data = args.player_data
   local forbidden = args.forbidden
 
-  for x = min_x,max_x
-  do
-    for y = min_y,max_y
+  local collision_mask = prototypes.entity.pipe.collision_mask.layers
+
+  local function check_for(predicate)
+    for x = min_x,max_x
     do
-      local pos = {x = x, y = y}
-      if not surface.can_place_entity{
-        name="pipe",
-        position=pos,
-        force=force,
-        build_check_type=defines.build_check_type.blueprint_ghost,
-        forced=true,
-      }
-      then
-        forbidden[Pos2Str(pos)] = true
+      for y = min_y,max_y
+      do
+        local pos = {x = x, y = y}
+        if predicate(pos)
+        then
+          forbidden[Pos2Str(pos)] = true
+        end
       end
     end
+  end
+
+  if not player_data.remove_existing
+  then
+    check_for(function(pos)
+      return surface.count_entities_filtered{
+          position=pos,
+          collision_mask=collision_mask,
+        } > 0 or
+        surface.count_entities_filtered{
+          position=pos,
+          type="entity-ghost",
+          force=force,
+        } > 0
+      end)
+  end
+
+  if not player_data.add_landfill
+  then
+    check_for(function(pos)
+      return surface.count_tiles_filtered{
+          position=pos,
+          radius=0.5,
+          collision_mask=collision_mask,
+        } > 0
+      end)
   end
 end
 
@@ -829,12 +919,10 @@ local function FindBeaconLocations(args)
     for y = bounds.min_y,bounds.max_y
     do
       local pos = {x = x, y = y}
-      if not surface.can_place_entity{
-        name=beacon_name,
+      if AnySpotForbidden{
+        collision_box=beacon_proto.collision_box,
         position=pos,
-        force=force,
-        build_check_type=defines.build_check_type.blueprint_ghost,
-        forced=true,
+        forbidden=forbidden,
       }
       then
         goto skip_pos
@@ -1175,17 +1263,16 @@ function layout.Plan(player, player_data, entities)
   local pumpjack_radius_int = math.floor(pumpjack_radius)
 
   local beacon_proto = prototypes.entity[beacon_type]
-  local beacon_radius
-  local beacon_radius_int
+  local beacon_radius = 0
   if beacon_type ~= "none"
   then
     beacon_radius = beacon_proto.selection_box.right_bottom.x
-    beacon_radius_int = math.floor(beacon_radius)
   end
 
-  -- Worst case padding requries 1 tile for a pipe, 1 tile for a heat pipe, and
-  -- two tiles for a power pole, so 4 more than pumpjack radius
-  local padding = pumpjack_radius_int + 4
+  -- Worst case padding requries 1 tile for a pipe, 1 tile for a heat pipe, 3
+  -- tiles for beacon and 2 tiles for a power pole, so 7 more than pumpjack
+  -- radius
+  local padding = pumpjack_radius_int + 4 + 2*beacon_radius
 
   local output_fluidboxes = {}
   for _, fluidbox in pairs(pumpjack_proto.fluidbox_prototypes)
@@ -1246,10 +1333,10 @@ function layout.Plan(player, player_data, entities)
     end
     table.insert(out_pipe_sets, subtargets)
 
-    ForbidPointsInRadius{
+    ForbidPointsInBox{
       pos=pos,
-      radius=pumpjack_radius_int,
-      forbidden_points=forbidden_points,
+      collision_box=pumpjack_proto.collision_box,
+      forbidden=forbidden_points,
     }
 
     min_x = math.min(min_x, pos.x - padding)
@@ -1269,7 +1356,9 @@ function layout.Plan(player, player_data, entities)
     forbidden=forbidden_points,
     force=player.force,
     surface=surface,
+    player_data=player_data,
     bounds=bounds,
+    debug=player.print,
   }
 
   local result = FindPipePaths{
@@ -1308,20 +1397,22 @@ function layout.Plan(player, player_data, entities)
     --print("Using direction "..direction.." for patch at "..serpent.line(position))
     local ghost = ForceGhostAt{
       surface=surface,
-      name=pumpjack_type,
+      proto=pumpjack_proto,
       position=position,
       direction=direction,
       quality=pumpjack_quality,
       player=player,
+      debug=player.print,
     }
     table.insert(ghosts, ghost)
   end
 
+  local pipe_proto = prototypes.entity[pipe_type]
   for _, pipe_pos in pairs(pipes)
   do
     local ghost = ForceGhostAt{
       surface=surface,
-      name=pipe_type,
+      proto=pipe_proto,
       position=pipe_pos,
       quality=pipe_quality,
       player=player,
@@ -1337,7 +1428,7 @@ function layout.Plan(player, player_data, entities)
 
     local ghost = ForceGhostAt{
       surface=surface,
-      name=underground_pipe_type,
+      proto=underground_proto,
       position=pos,
       direction=direction,
       quality=underground_pipe_quality,
@@ -1364,11 +1455,12 @@ function layout.Plan(player, player_data, entities)
     end
 
     local heat_pipe_poss = result.heat_pipe_poss
+    local heat_pipe_proto = prototypes.entity[heat_pipe_type]
     for _, pos in pairs(heat_pipe_poss)
     do
       local ghost = ForceGhostAt{
         surface=surface,
-        name=heat_pipe_type,
+        proto=heat_pipe_proto,
         position=pos,
         quality=heat_pipe_quality,
         player=player,
@@ -1383,7 +1475,8 @@ function layout.Plan(player, player_data, entities)
   local beacon_poss = {}
   if beacon_type ~= "none"
   then
-    assert(beacon_radius_int ~= nil, "Nil radius")
+    assert(beacon_radius ~= nil, "Nil radius")
+    assert(beacon_radius ~= 0, "Zero radius")
 
     local min_beacon_utility = player_data.min_beacon_utility
     if min_beacon_utility == nil
@@ -1408,16 +1501,17 @@ function layout.Plan(player, player_data, entities)
     do
       local ghost = ForceGhostAt{
         surface=surface,
-        name=beacon_type,
+        proto=beacon_proto,
         position=pos,
         quality=beacon_quality,
         player=player,
+        debug=player.print,
       }
 
-      ForbidPointsInRadius{
+      ForbidPointsInBox{
         pos=pos,
-        radius=beacon_radius_int,
-        forbidden_points=forbidden_points,
+        collision_box=beacon_proto.collision_box,
+        forbidden=forbidden_points,
       }
       table.insert(ghosts, ghost)
     end
@@ -1469,7 +1563,7 @@ function layout.Plan(player, player_data, entities)
   do
     local ghost = ForceGhostAt{
       surface=surface,
-      name=power_pole_type,
+      proto=power_pole_proto,
       position=pole_pos,
       quality=power_pole_quality,
       player=player,

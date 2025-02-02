@@ -263,6 +263,28 @@ function gui.create_interface(player, player_data)
       }
     )
   end
+
+  local function add_checkbox(option_name, default)
+    local caption_key = "oil-outpost-planner.settings_"..option_name
+    local tooltip = wrap_tooltip({ caption_key.."_tooltip" })
+    local current_value = player_data[option_name]
+    if current_value == nil
+    then
+      player_data[option_name] = default
+      current_value = default
+    end
+
+    frame.add{
+      type="checkbox",
+      caption={ caption_key },
+      tooltip=tooltip,
+      state=current_value,
+      tags={ oop_option=option_name },
+    }
+  end
+
+  add_checkbox("add_landfill", true)
+  add_checkbox("remove_existing", false)
 end
 
 local function update_pumpjack_selection(player_data)
@@ -518,6 +540,16 @@ function gui.on_text_changed(event, player, player_data)
   if element.name == "oop_min_beacon_utility"
   then
     player_data.min_beacon_utility = tonumber(event.text)
+  end
+end
+
+function gui.on_checked_state_changed(event, player, player_data)
+  local element = event.element
+  local option_name = element.tags.oop_option
+
+  if option_name ~= nil
+  then
+    player_data[option_name] = element.state
   end
 end
 
