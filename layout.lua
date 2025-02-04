@@ -1237,7 +1237,12 @@ function layout.Plan(player, player_data, entities)
   local beacon_type = player_data.choices.beacon_choice
   local power_pole_type = player_data.choices.pole_choice
 
-  local default_quality = common.get_default_quality().name
+  local default_quality_proto = common.get_default_quality()
+  local default_quality = nil
+  if default_quality_proto ~= nil
+  then
+    default_quality = default_quality_proto.name
+  end
   local pumpjack_quality = player_data.qualities[quality_key] or default_quality
   local pipe_quality = player_data.qualities["pipe"] or default_quality
   local underground_pipe_quality = player_data.qualities["pipe-to-ground"] or default_quality
