@@ -305,6 +305,51 @@ local function AddForbiddenPoints(args)
   end
 end
 
+local function FloodFill(args)
+  local min_x = args.bounds.min_x
+  local min_y = args.bounds.min_y
+  local max_x = args.bounds.max_x
+  local max_y = args.bounds.max_y
+  local origin = args.origin
+  local adjacency = args.adjacency
+  local forbidden = args.forbidden
+
+  local to_check = {origin}
+  local next_to_check = {}
+  local reachable = {[Pos2Str(origin)] = true}
+
+  while not IsEmpty(to_check)
+  do
+    for _, pos in pairs(to_check)
+    do
+      for _, off in pairs(adjacency)
+      do
+        local candidate = { x = pos.x + off.x, y = pos.y + off.y }
+        local candidate_s = Pos2Str(candidate)
+
+        local valid_and_new = (
+          not reachable[candidate_s]
+          and candidate.x >= min_x
+          and candidate.x <= max_x
+          and candidate.y >= min_y
+          and candidate.y <= max_y
+          and not forbidden[candidate_s])
+
+        if valid_and_new
+        then
+          table.insert(next_to_check, candidate)
+          reachable[candidate_s] = true
+        end
+      end
+    end
+
+    to_check = next_to_check
+    next_to_check = {}
+  end
+
+  return reachable
+end
+
 local function SolveSteinerTree(args)
   local min_x = args.bounds.min_x
   local min_y = args.bounds.min_y
@@ -313,6 +358,7 @@ local function SolveSteinerTree(args)
   local targets = args.targets
   local adjacency = args.adjacency
   local forbidden = args.forbidden
+  local skip_flood_fill = args.skip_flood_fill
   local choose_subtarget = args.choose_subtarget
   local debug_viz_surface = args.debug_viz_surface
 
@@ -343,12 +389,105 @@ local function SolveSteinerTree(args)
     end
   end
 
-  -- Remove forbidden points from the targets
+  local reachable = {}
+
+  if args.skip_flood_fill
+  then
+    -- If we're asked to skip the flood fill then we instead build a reachable
+    -- array that's simply all the non-forbidden points within bounds
+    for x = min_x,max_x
+    do
+      for y = min_y,max_y
+      do
+        local pos = {x = x, y = y}
+        local pos_s = Pos2Str(pos)
+        if not forbidden[pos_s]
+        then
+          reachable[pos_s] = true
+        end
+      end
+    end
+  else
+    -- First, we want to partition the subtargets into connected components.
+    -- This avoids the issue where we pick a subtarget for a particular target
+    -- and it turns out to not be able to connect to other ones.  Do this by
+    -- flood filling from an arbitrary subtarget and seeing which others we
+    -- reach.  Then repeat until we've covered all of them.
+    local all_subtargets = {}
+
+    -- Remove forbidden points from the targets whilst adding the others to the
+    -- big list
+    for _, target in pairs(targets)
+    do
+      for i, subtarget in pairs(target)
+      do
+        if forbidden[Pos2Str(subtarget)]
+        then
+          target[i] = nil
+        else
+          table.insert(all_subtargets, subtarget)
+        end
+      end
+
+      if IsEmpty(target)
+      then
+        args.debug({"oil-outpost-planner.msg_all_subtargets_invalid"})
+        return nil
+      end
+    end
+
+    local partitions = {}
+    while not IsEmpty(all_subtargets)
+    do
+      local start_point
+      for _, subtarget in pairs(all_subtargets)
+      do
+        start_point = subtarget
+        break
+      end
+
+      assert(start_point ~= nil)
+
+      local filled = FloodFill{
+        origin=start_point,
+        bounds=args.bounds,
+        adjacency=adjacency,
+        forbidden=forbidden,
+      }
+
+      local this_part = {}
+      local remaining_subtargets = {}
+
+      for _, subtarget in pairs(all_subtargets)
+      do
+        if filled[Pos2Str(subtarget)]
+        then
+          table.insert(this_part, subtarget)
+        else
+          table.insert(remaining_subtargets, subtarget)
+        end
+      end
+
+      table.insert(partitions, {subtargets=this_part, all_points=filled})
+
+      all_subtargets = remaining_subtargets
+    end
+
+    -- Now pick the largest partition to be the one we stick with
+    table.sort(partitions, function(l, r)
+      return #l.subtargets > #r.subtargets
+    end)
+
+    local chosen_partition = partitions[1]
+    reachable = chosen_partition.all_points
+  end
+
+  -- Eliminate all the subtargets that aren't in the largest partition
   for _, target in pairs(targets)
   do
     for i, subtarget in pairs(target)
     do
-      if forbidden[Pos2Str(subtarget)]
+      if not reachable[Pos2Str(subtarget)]
       then
         target[i] = nil
       end
@@ -493,14 +632,8 @@ local function SolveSteinerTree(args)
           do
             local candidate = { x = pos.x + off.x, y = pos.y + off.y }
             local candidate_s = Pos2Str(candidate)
-            local valid = (
-              candidate.x >= min_x
-              and candidate.x <= max_x
-              and candidate.y >= min_y
-              and candidate.y <= max_y
-              and not forbidden[candidate_s])
             --print("Considering candidate ("..candidate.x..","..candidate.y.."), forbidden="..serpent.block(forbidden[candidate_s])..", valid="..serpent.block(valid))
-            if valid
+            if reachable[candidate_s]
             then
               --print("Candidate valid position")
               local nearest_target_info = nearest_target_to[candidate_s]
@@ -1120,6 +1253,7 @@ local function FindPowerPolePositions(args)
   end
 
   local offset_forbidden = forbidden
+  local offset_bounds = bounds
   -- When the power pole size is 2, we need to replace every entry in forbidden
   -- with four neighbours offset by a half unit in each direction
   if size == 2
@@ -1141,13 +1275,21 @@ local function FindPowerPolePositions(args)
         offset_forbidden[Pos2Str(offset_pos)] = true
       end
     end
+
+    offset_bounds = {
+      min_x = bounds.min_x + 0.5,
+      max_x = bounds.max_x - 0.5,
+      min_y = bounds.min_y + 0.5,
+      max_y = bounds.max_y - 0.5,
+    }
   end
 
   tree_result = SolveSteinerTree{
     targets=targets,
     adjacency=pole_adjacency,
-    bounds=bounds,
+    bounds=offset_bounds,
     forbidden=offset_forbidden,
+    skip_flood_fill=true,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
     debug_viz_surface=debug_viz_surface,
