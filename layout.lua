@@ -78,7 +78,7 @@ local function ForceGhostAt(args)
   local existing = surface.find_entities_filtered{
     area=bbox,
     collision_mask=proto.collision_mask.layers,
-    force=force,
+    force={force, "neutral"},
   }
   for _, entity in pairs(existing)
   do
