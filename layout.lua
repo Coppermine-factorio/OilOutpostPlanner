@@ -139,6 +139,12 @@ local function AddLandfillUnder(args)
 
   for _, ghost in pairs(ghosts)
   do
+    if not ghost.valid
+    then
+      args.debug("Invalid ghost. Entities placed overlapping.  Please report this as a bug in OilOutpostPlanner")
+      goto skip_ghost
+    end
+
     local surface = ghost.surface
     local entity_proto = ghost.ghost_prototype
     local tiles = surface.find_tiles_filtered{
@@ -150,7 +156,7 @@ local function AddLandfillUnder(args)
     do
       if tile.name == "out-of-map"
       then
-        goto skip
+        goto skip_tile
       end
 
       local tile_proto = tile.prototype
@@ -184,8 +190,10 @@ local function AddLandfillUnder(args)
         tile_proto = cover_tile
       end
 
-      ::skip::
+      ::skip_tile::
     end
+
+    ::skip_ghost::
   end
 end
 
