@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.3
+Date: 06.02.2025
+  Bugfixes:
+    - Mark neutral entities (e.g. rocks, cliffs) for deconstruction when placing blueprints.
+    - Avoid certain failure modes when planning pipe layouts.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.2
 Date: 05.02.2025
   Bugfixes:
