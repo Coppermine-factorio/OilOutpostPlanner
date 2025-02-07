@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.4
+Date: 06.02.2025
+  Changes:
+    - Always permit removing neutral entities.
+  Bugfixes:
+    - Avoid attempting to place substations that overlap.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.3
 Date: 06.02.2025
   Bugfixes:
