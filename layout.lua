@@ -1319,7 +1319,7 @@ local function FindPowerPolePositions(args)
     skip_flood_fill=true,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
-    debug_viz_surface=debug_viz_surface,
+    --debug_viz_surface=debug_viz_surface,
   }
 
   if tree_result == nil
@@ -1749,6 +1749,7 @@ function layout.Plan(player, player_data, entities)
       position=pole_pos,
       quality=power_pole_quality,
       player=player,
+      debug=player.print,
     }
     table.insert(ghosts, ghost)
   end
