@@ -358,6 +358,7 @@ local function SolveSteinerTree(args)
   local targets = args.targets
   local adjacency = args.adjacency
   local forbidden = args.forbidden
+  local forbid_adjacency = args.forbid_adjacency or {}
   local skip_flood_fill = args.skip_flood_fill
   local choose_subtarget = args.choose_subtarget
   local debug_viz_surface = args.debug_viz_surface
@@ -525,6 +526,17 @@ local function SolveSteinerTree(args)
   local target_neighbourhood_index = {}
 
   local paths = {}
+  -- Sometimes placing an item should forbid some nearby items.  We track these
+  -- extra forbidden locations here
+  local extra_forbidden = {}
+
+  local function AddExtraForbidden(pos)
+    for _, offset in pairs(forbid_adjacency)
+    do
+      local forbid = { x = pos.x + offset.x, y = pos.y + offset.y }
+      extra_forbidden[Pos2Str(forbid)] = true
+    end
+  end
 
   local function ClearNeighbourhood(target_idx)
     for _, n in pairs(target_neighbourhoods[target_idx])
@@ -543,7 +555,7 @@ local function SolveSteinerTree(args)
     for subtarget_idx, subtarget in pairs(target_set)
     do
       subtarget_str = Pos2Str(subtarget)
-      if not forbidden[subtarget_str]
+      if not extra_forbidden[subtarget_str]
       then
         if nearest_target_to[subtarget_str] ~= nil
         then
@@ -568,6 +580,7 @@ local function SolveSteinerTree(args)
               {pos=subtarget, distance=1}
             )
             paths[subtarget_str] = subtarget
+            AddExtraForbidden(subtarget)
             if debug_viz_surface ~= nil
             then
               rendering.draw_text{
@@ -633,7 +646,7 @@ local function SolveSteinerTree(args)
             local candidate = { x = pos.x + off.x, y = pos.y + off.y }
             local candidate_s = Pos2Str(candidate)
             --print("Considering candidate ("..candidate.x..","..candidate.y.."), forbidden="..serpent.block(forbidden[candidate_s])..", valid="..serpent.block(valid))
-            if reachable[candidate_s]
+            if reachable[candidate_s] and not extra_forbidden[candidate_s]
             then
               --print("Candidate valid position")
               local nearest_target_info = nearest_target_to[candidate_s]
@@ -777,6 +790,7 @@ local function SolveSteinerTree(args)
     do
       path_node_str = Pos2Str(path_node)
       paths[path_node_str] = path_node
+      AddExtraForbidden(path_node)
 
       if nearest_target_to[path_node_str] == nil
       then
@@ -1254,6 +1268,7 @@ local function FindPowerPolePositions(args)
 
   local offset_forbidden = forbidden
   local offset_bounds = bounds
+  local forbid_adjacency = {}
   -- When the power pole size is 2, we need to replace every entry in forbidden
   -- with four neighbours offset by a half unit in each direction
   if size == 2
@@ -1282,13 +1297,25 @@ local function FindPowerPolePositions(args)
       min_y = bounds.min_y + 0.5,
       max_y = bounds.max_y - 0.5,
     }
+
+    forbid_adjacency = {
+      { x = 1, y = 1 },
+      { x = 1, y = -1 },
+      { x = -1, y = 1 },
+      { x = -1, y = -1 },
+      { x = 1, y = 0 },
+      { x = -1, y = 0 },
+      { x = 0, y = 1 },
+      { x = 0, y = -1 },
+    }
   end
 
   tree_result = SolveSteinerTree{
     targets=targets,
-    adjacency=pole_adjacency,
     bounds=offset_bounds,
+    adjacency=pole_adjacency,
     forbidden=offset_forbidden,
+    forbid_adjacency=forbid_adjacency,
     skip_flood_fill=true,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
