@@ -284,6 +284,7 @@ local function AddForbiddenPoints(args)
       return surface.count_entities_filtered{
           position=pos,
           collision_mask=collision_mask,
+          force=force,
         } > 0 or
         surface.count_entities_filtered{
           position=pos,
