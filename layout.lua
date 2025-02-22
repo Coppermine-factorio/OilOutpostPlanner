@@ -1003,7 +1003,7 @@ local function FindHeatPipePaths(args)
   for _, entity in pairs(entities)
   do
     local entity_pos = entity.position
-    local entity_proto = entity.ghost_prototype
+    local entity_proto = entity.prototype
     local entity_radius = entity_proto.selection_box.right_bottom.x
     local heat_pipe_range = entity_radius + 0.5
 
@@ -1341,6 +1341,110 @@ local function FindPowerPolePositions(args)
   }
 end
 
+local function TryPipesAndHeatPipes(args)
+  local bounds = args.bounds
+  local forbidden = args.forbidden
+  local out_pipe_sets = args.out_pipe_sets
+  local pumpjack_type = args.pumpjack_type
+  local pipe_type = args.pipe_type
+  local underground_pipe_type = args.underground_pipe_type
+  local entities_require_heating = args.entities_require_heating
+  local heat_pipe_type = args.heat_pipe_type
+  local oil_patches = args.oil_patches
+
+  -- Figure out other properties of the chosen entities
+  local underground_proto
+  local min_underground_distance
+  local max_underground_distance
+  if underground_pipe_type == "none"
+  then
+    min_underground_distance = 1e10
+  else
+    underground_proto = prototypes.entity[underground_pipe_type]
+    max_underground_distance = underground_proto.max_underground_distance
+    min_underground_distance = 3
+  end
+
+  local my_result = {}
+
+  local pipe_result = FindPipePaths{
+    bounds=bounds,
+    targets=out_pipe_sets,
+    forbidden=forbidden,
+    min_underground_distance=min_underground_distance,
+    max_underground_distance=max_underground_distance,
+    debug=args.debug,
+    debug_entity_name=pipe_type,
+    --debug_viz_surface=args.debug_viz_surface
+  }
+
+  if pipe_result == nil
+  then
+    my_result.failed_pipe_layout = true
+    return my_result
+  end
+
+  local directions = pipe_result.directions
+  my_result.directions = directions
+  my_result.pipes = pipe_result.pipes
+  my_result.undergrounds = pipe_result.undergrounds
+
+  -- Next step is to add heat pipes, but only if the surface requires them
+  if entities_require_heating and heat_pipe_type ~= "none"
+  then
+    -- Construct a list of entities which need heating
+    local entities = {}
+
+    local forbidden_copy = {}
+    for pos_str, val in pairs(forbidden)
+    do
+      forbidden_copy[pos_str] = val
+    end
+
+    local pumpjack_proto = prototypes.entity[pumpjack_type]
+    assert(pumpjack_proto ~= nil)
+    for i, patch in pairs(oil_patches)
+    do
+      table.insert(entities, {position=patch.position, prototype=pumpjack_proto})
+    end
+
+    local pipe_proto = prototypes.entity[pipe_type]
+    assert(pipe_proto ~= nil)
+    for _, pipe_pos in pairs(pipe_result.pipes)
+    do
+      table.insert(entities, {position=pipe_pos, prototype=pipe_proto})
+      forbidden_copy[Pos2Str(pipe_pos)] = true
+    end
+
+    local underground_pipe_proto = prototypes.entity[underground_pipe_type]
+    assert(underground_pipe_proto ~= nil)
+    for _, underground_info in pairs(pipe_result.undergrounds)
+    do
+      local pos = underground_info.pos
+      table.insert(entities, {position=pos, prototype=underground_proto})
+      forbidden_copy[Pos2Str(pos)] = true
+    end
+
+    local heat_pipe_result = FindHeatPipePaths{
+      bounds=bounds,
+      entities=entities,
+      forbidden=forbidden_copy,
+      debug=args.debug,
+      debug_entity_name=heat_pipe_type,
+    }
+
+    if heat_pipe_result == nil
+    then
+      my_result.failed_heat_pipe_layout = true
+      return my_result
+    end
+
+    my_result.heat_pipe_poss = heat_pipe_result.heat_pipe_poss
+  end
+
+  return my_result
+end
+
 function layout.Plan(player, player_data, entities)
   local oil_patches = {}
   local chosen_entity_name
@@ -1436,15 +1540,9 @@ function layout.Plan(player, player_data, entities)
 
   -- Figure out other properties of the chosen entities
   local underground_proto
-  local min_underground_distance
-  local max_underground_distance
-  if underground_pipe_type == "none"
+  if underground_pipe_type ~= "none"
   then
-    min_underground_distance = 1e10
-  else
     underground_proto = prototypes.entity[underground_pipe_type]
-    max_underground_distance = underground_proto.max_underground_distance
-    min_underground_distance = 3
   end
 
   local pumpjack_proto = prototypes.entity[pumpjack_type]
@@ -1550,26 +1648,29 @@ function layout.Plan(player, player_data, entities)
     debug=player.print,
   }
 
-  local result = FindPipePaths{
+  local pipe_result = TryPipesAndHeatPipes{
     bounds=bounds,
-    targets=out_pipe_sets,
     forbidden=forbidden_points,
-    min_underground_distance=min_underground_distance,
-    max_underground_distance=max_underground_distance,
+    out_pipe_sets=out_pipe_sets,
+    pumpjack_type=pumpjack_type,
+    pipe_type=pipe_type,
+    underground_pipe_type=underground_pipe_type,
+    heat_pipe_type=heat_pipe_type,
+    entities_require_heating=entities_require_heating,
+    oil_patches=oil_patches,
     debug=player.print,
-    debug_entity_name=pipe_type,
     --debug_viz_surface=surface
   }
 
-  if result == nil
+  if pipe_result.failed_pipe_layout
   then
     player.print({"oil-outpost-planner.msg_pipe_layout_failed"})
     return
   end
 
-  local directions = result.directions
-  local pipes = result.pipes
-  local undergrounds = result.undergrounds
+  local directions = pipe_result.directions
+  local pipes = pipe_result.pipes
+  local undergrounds = pipe_result.undergrounds
 
   --print("Got directions "..serpent.line(directions))
   assert(#oil_patches == #directions, "Did not get one direction per patch\n"
@@ -1598,7 +1699,7 @@ function layout.Plan(player, player_data, entities)
   end
 
   local pipe_proto = prototypes.entity[pipe_type]
-  for _, pipe_pos in pairs(pipes)
+  for _, pipe_pos in pairs(pipe_result.pipes)
   do
     local ghost = ForceGhostAt{
       surface=surface,
@@ -1611,7 +1712,7 @@ function layout.Plan(player, player_data, entities)
     table.insert(ghosts, ghost)
   end
 
-  for _, underground_info in pairs(undergrounds)
+  for _, underground_info in pairs(pipe_result.undergrounds)
   do
     local pos = underground_info.pos
     local direction = underground_info.direction
@@ -1628,37 +1729,25 @@ function layout.Plan(player, player_data, entities)
     table.insert(ghosts, ghost)
   end
 
-  -- Next step is to add heat pipes, but only if the surface requires them
-  if entities_require_heating and heat_pipe_type ~= "none"
+  if pipe_result.failed_heat_pipe_layout
   then
-    local result = FindHeatPipePaths{
-      bounds=bounds,
-      entities=ghosts,
-      forbidden=forbidden_points,
-      debug=player.print,
-      debug_entity_name=heat_pipe_type,
+    player.print({"oil-outpost-planner.msg_heat_pipe_layout_failed"})
+    return
+  end
+
+  local heat_pipe_poss = pipe_result.heat_pipe_poss
+  local heat_pipe_proto = prototypes.entity[heat_pipe_type]
+  for _, pos in pairs(heat_pipe_poss)
+  do
+    local ghost = ForceGhostAt{
+      surface=surface,
+      proto=heat_pipe_proto,
+      position=pos,
+      quality=heat_pipe_quality,
+      player=player,
     }
-
-    if result == nil
-    then
-      player.print({"oil-outpost-planner.msg_heat_pipe_layout_failed"})
-      return
-    end
-
-    local heat_pipe_poss = result.heat_pipe_poss
-    local heat_pipe_proto = prototypes.entity[heat_pipe_type]
-    for _, pos in pairs(heat_pipe_poss)
-    do
-      local ghost = ForceGhostAt{
-        surface=surface,
-        proto=heat_pipe_proto,
-        position=pos,
-        quality=heat_pipe_quality,
-        player=player,
-      }
-      forbidden_points[Pos2Str(pos)] = true
-      table.insert(ghosts, ghost)
-    end
+    forbidden_points[Pos2Str(pos)] = true
+    table.insert(ghosts, ghost)
   end
 
   -- Next we add beacons (if requested).  This happens after heat pipes, so we
