@@ -433,7 +433,10 @@ local function SolveSteinerTree(args)
 
       if IsEmpty(target)
       then
-        args.debug({"oil-outpost-planner.msg_all_subtargets_invalid"})
+        args.debug({
+          "oil-outpost-planner.msg_all_subtargets_invalid",
+          {"entity-name."..args.debug_entity_name},
+        })
         return nil
       end
     end
@@ -854,6 +857,7 @@ local function FindPipePaths(args)
     forbidden=forbidden,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
+    debug_entity_name=args.debug_entity_name,
     debug_viz_surface=debug_viz_surface
   }
 
@@ -1032,6 +1036,7 @@ local function FindHeatPipePaths(args)
     forbidden=forbidden,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
+    debug_entity_name=args.debug_entity_name,
   }
 
   if tree_result == nil
@@ -1320,6 +1325,7 @@ local function FindPowerPolePositions(args)
     skip_flood_fill=true,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
+    debug_entity_name=args.debug_entity_name,
     --debug_viz_surface=debug_viz_surface,
   }
 
@@ -1551,6 +1557,7 @@ function layout.Plan(player, player_data, entities)
     min_underground_distance=min_underground_distance,
     max_underground_distance=max_underground_distance,
     debug=player.print,
+    debug_entity_name=pipe_type,
     --debug_viz_surface=surface
   }
 
@@ -1628,7 +1635,8 @@ function layout.Plan(player, player_data, entities)
       bounds=bounds,
       entities=ghosts,
       forbidden=forbidden_points,
-      debug=player.print
+      debug=player.print,
+      debug_entity_name=heat_pipe_type,
     }
 
     if result == nil
@@ -1731,6 +1739,7 @@ function layout.Plan(player, player_data, entities)
     supply_distance=supply_distance,
     size=power_pole_size,
     debug=player.print,
+    debug_entity_name=power_pole_type,
     --debug_viz_surface=surface,
   }
 
