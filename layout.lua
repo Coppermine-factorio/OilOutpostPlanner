@@ -47,6 +47,17 @@ local function MoreThanOne(t)
   return false
 end
 
+local function CopyTable(t)
+  copy = {}
+
+  for key, val in pairs(t)
+  do
+    copy[key] = val
+  end
+
+  return copy
+end
+
 local function Pos2Str(pos)
   return pos.x..","..pos.y
 end
@@ -416,10 +427,11 @@ local function SolveSteinerTree(args)
     -- flood filling from an arbitrary subtarget and seeing which others we
     -- reach.  Then repeat until we've covered all of them.
     local all_subtargets = {}
+    local unreachable_targets = {}
 
     -- Remove forbidden points from the targets whilst adding the others to the
     -- big list
-    for _, target in pairs(targets)
+    for target_idx, target in pairs(targets)
     do
       for i, subtarget in pairs(target)
       do
@@ -433,12 +445,13 @@ local function SolveSteinerTree(args)
 
       if IsEmpty(target)
       then
-        args.debug({
-          "oil-outpost-planner.msg_all_subtargets_invalid",
-          {"entity-name."..args.debug_entity_name},
-        })
-        return nil
+        table.insert(unreachable_targets, target_idx)
       end
+    end
+
+    if #unreachable_targets > 0
+    then
+      return {failed=true, unreachable_targets=unreachable_targets}
     end
 
     local partitions = {}
@@ -488,7 +501,8 @@ local function SolveSteinerTree(args)
   end
 
   -- Eliminate all the subtargets that aren't in the largest partition
-  for _, target in pairs(targets)
+  local unreachable_targets = {}
+  for target_idx, target in pairs(targets)
   do
     for i, subtarget in pairs(target)
     do
@@ -500,9 +514,13 @@ local function SolveSteinerTree(args)
 
     if IsEmpty(target)
     then
-      args.debug({"oil-outpost-planner.msg_all_subtargets_invalid"})
-      return nil
+      table.insert(unreachable_targets, target_idx)
     end
+  end
+
+  if #unreachable_targets > 0
+  then
+    return {failed=true, unreachable_targets=unreachable_targets}
   end
 
   -- Special case for a single target
@@ -701,7 +719,7 @@ local function SolveSteinerTree(args)
 
     if merge_target == nil
     then
-      return nil
+      return {failed=true}
     end
     --print("Got a merge target "..serpent.line(merge_target))
 
@@ -723,7 +741,7 @@ local function SolveSteinerTree(args)
         if #this_path > 500
         then
           args.debug("Generated path was too long")
-          return nil
+          return {failed=true}
         end
 
         local n = nearest_target_to[Pos2Str(pos)]
@@ -827,6 +845,18 @@ local function SolveSteinerTree(args)
   }
 end
 
+local function ReportSteinerTreeFailure(tree_result, debug, debug_entity_name)
+  assert(tree_result.failed, "Should have passed a failing result object")
+
+  if tree_result.unreachable_targets ~= nil
+  then
+    debug({
+      "oil-outpost-planner.msg_all_subtargets_invalid",
+      {"entity-name."..debug_entity_name},
+    })
+  end
+end
+
 local function FindPipePaths(args)
   local bounds = args.bounds
   local targets = args.targets
@@ -857,12 +887,12 @@ local function FindPipePaths(args)
     forbidden=forbidden,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
-    debug_entity_name=args.debug_entity_name,
     debug_viz_surface=debug_viz_surface
   }
 
-  if tree_result == nil
+  if tree_result.failed
   then
+    ReportSteinerTreeFailure(tree_result, args.debug, args.debug_entity_name)
     return nil
   end
 
@@ -1036,12 +1066,11 @@ local function FindHeatPipePaths(args)
     forbidden=forbidden,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
-    debug_entity_name=args.debug_entity_name,
   }
 
-  if tree_result == nil
+  if tree_result.failed
   then
-    return nil
+    return tree_result
   end
 
   return {
@@ -1325,12 +1354,12 @@ local function FindPowerPolePositions(args)
     skip_flood_fill=true,
     choose_subtarget=ChooseSubtarget,
     debug=args.debug,
-    debug_entity_name=args.debug_entity_name,
     --debug_viz_surface=debug_viz_surface,
   }
 
-  if tree_result == nil
+  if tree_result.failed
   then
+    ReportSteinerTreeFailure(tree_result, args.debug, args.debug_entity_name)
     return nil
   end
 
@@ -1365,12 +1394,16 @@ local function TryPipesAndHeatPipes(args)
     min_underground_distance = 3
   end
 
-  local my_result = {}
+  local forbidden_for_pipes = CopyTable(forbidden)
+
+  ::try_pipes_again::
+
+  local my_result = {heat_pipe_poss={}}
 
   local pipe_result = FindPipePaths{
     bounds=bounds,
     targets=out_pipe_sets,
-    forbidden=forbidden,
+    forbidden=forbidden_for_pipes,
     min_underground_distance=min_underground_distance,
     max_underground_distance=max_underground_distance,
     debug=args.debug,
@@ -1394,11 +1427,23 @@ local function TryPipesAndHeatPipes(args)
   then
     -- Construct a list of entities which need heating
     local entities = {}
+    local forbidden_for_heat_pipes = CopyTable(forbidden)
 
-    local forbidden_copy = {}
-    for pos_str, val in pairs(forbidden)
+    local pipe_proto = prototypes.entity[pipe_type]
+    assert(pipe_proto ~= nil)
+    for _, pipe_pos in pairs(pipe_result.pipes)
     do
-      forbidden_copy[pos_str] = val
+      table.insert(entities, {position=pipe_pos, prototype=pipe_proto})
+      forbidden_for_heat_pipes[Pos2Str(pipe_pos)] = true
+    end
+
+    local underground_pipe_proto = prototypes.entity[underground_pipe_type]
+    assert(underground_pipe_proto ~= nil)
+    for _, underground_info in pairs(pipe_result.undergrounds)
+    do
+      local pos = underground_info.pos
+      table.insert(entities, {position=pos, prototype=underground_proto})
+      forbidden_for_heat_pipes[Pos2Str(pos)] = true
     end
 
     local pumpjack_proto = prototypes.entity[pumpjack_type]
@@ -1408,35 +1453,58 @@ local function TryPipesAndHeatPipes(args)
       table.insert(entities, {position=patch.position, prototype=pumpjack_proto})
     end
 
-    local pipe_proto = prototypes.entity[pipe_type]
-    assert(pipe_proto ~= nil)
-    for _, pipe_pos in pairs(pipe_result.pipes)
-    do
-      table.insert(entities, {position=pipe_pos, prototype=pipe_proto})
-      forbidden_copy[Pos2Str(pipe_pos)] = true
-    end
-
-    local underground_pipe_proto = prototypes.entity[underground_pipe_type]
-    assert(underground_pipe_proto ~= nil)
-    for _, underground_info in pairs(pipe_result.undergrounds)
-    do
-      local pos = underground_info.pos
-      table.insert(entities, {position=pos, prototype=underground_proto})
-      forbidden_copy[Pos2Str(pos)] = true
-    end
-
     local heat_pipe_result = FindHeatPipePaths{
       bounds=bounds,
       entities=entities,
-      forbidden=forbidden_copy,
+      forbidden=forbidden_for_heat_pipes,
       debug=args.debug,
-      debug_entity_name=heat_pipe_type,
     }
 
-    if heat_pipe_result == nil
+    if heat_pipe_result.failed
     then
-      my_result.failed_heat_pipe_layout = true
-      return my_result
+      if heat_pipe_result.unreachable_targets == nil
+      then
+        ReportSteinerTreeFailure(heat_pipe_result, args.debug, heat_pipe_type)
+        my_result.failed_heat_pipe_layout = true
+        return my_result
+      end
+
+      -- We can hope to try again.  If some pipe was unreachable, then we
+      -- forbid that specific spot and loop back.  We need to construct a list
+      -- of the positions of all the pipes and undergrounds we originally
+      -- passed in so that we can convert the unreachable target indices back
+      -- into useful positions
+      local entity_poss = {}
+      for _, pipe_pos in pairs(pipe_result.pipes)
+      do
+        table.insert(entity_poss, pipe_pos)
+      end
+
+      for _, underground_info in pairs(pipe_result.undergrounds)
+      do
+        table.insert(entity_poss, underground_info.pos)
+      end
+      local num_entity_poss = #entity_poss
+
+      for _, target_idx in pairs(heat_pipe_result.unreachable_targets)
+      do
+        if target_idx > num_entity_poss
+        then
+          -- This was a pumpjack.  We can't help with that.
+          my_result.failed_heat_pipe_layout = true
+          return my_result
+        end
+
+        local orig_pos = entity_poss[target_idx]
+        local orig_pos_str = Pos2Str(orig_pos)
+        assert(
+          not forbidden_for_pipes[orig_pos_str],
+          "Pipe in forbidden location?"
+        )
+        forbidden_for_pipes[orig_pos_str] = true
+      end
+
+      goto try_pipes_again
     end
 
     my_result.heat_pipe_poss = heat_pipe_result.heat_pipe_poss
