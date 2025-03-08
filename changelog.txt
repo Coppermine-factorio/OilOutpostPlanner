@@ -1,6 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.6
+Date: 08.03.2025
+  Bugfixes:
+    - Avoid crash from too-long list of resources.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.5
-Date: 022.02.2025
+Date: 22.02.2025
   Bugfixes:
     - Better message for certain failure modes.
     - Try harder to plan heat pipes.
