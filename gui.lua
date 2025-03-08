@@ -235,6 +235,11 @@ function gui.create_interface(player, player_data)
     list = { "" }
     for _, resource_proto in pairs(entities)
     do
+      if #list > 10
+      then
+        table.insert(list, { "oil-outpost-planner.settings_pumpjack_label_more" })
+        break
+      end
       if #list > 1
       then
         table.insert(list, ", ")
