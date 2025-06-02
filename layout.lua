@@ -91,11 +91,18 @@ local function ForceGhostAt(args)
     collision_mask=proto.collision_mask.layers,
     force={force, "neutral"},
   }
+
   for _, entity in pairs(existing)
   do
     if entity ~= new_entity
     then
-      entity.order_deconstruction(player.force, player)
+      -- In editor mode marking a cliff for deconstruction instantly removes
+      -- it.  That in turn can cause connected cliff segments to cease to
+      -- exist.  Which can make later entities in this loop invalid.
+      if entity.valid
+      then
+        entity.order_deconstruction(player.force, player)
+      end
     end
   end
 
@@ -1775,6 +1782,7 @@ function layout.Plan(player, player_data, entities)
       position=pipe_pos,
       quality=pipe_quality,
       player=player,
+      debug=player.print,
     }
     forbidden_points[Pos2Str(pipe_pos)] = true
     table.insert(ghosts, ghost)
