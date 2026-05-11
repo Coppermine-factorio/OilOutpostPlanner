@@ -1103,6 +1103,10 @@ local function FindBeaconLocations(args)
     beacon_proto.get_supply_area_distance(quality)
     + beacon_radius + entity_radius - 1)
   local profile = beacon_proto.profile
+  if profile == nil
+  then
+    profile = {1}
+  end
 
   -- We do a simple greedy search, choosing the best beacon position first and
   -- working down to the worst.
@@ -1158,17 +1162,27 @@ local function FindBeaconLocations(args)
   end
 
   -- Step 3: Sort the candidates by their effect
+  local function beacon_effect(count)
+    if count == 0
+    then
+      return 0
+    end
+    local result = profile[count]
+    -- If we go past the end of the profile, just use the last element
+    if result == nil
+    then
+      result = profile[#profile]
+    end
+    return result * count
+  end
+
   local function score_candidate(candidate)
     local tally = 0
     for _, target in pairs(candidate.targets)
     do
       local target_count = target_counts[target]
-      local current = 0
-      if target_count > 0
-      then
-        current = profile[target_count] * target_count
-      end
-      local new = profile[target_count + 1] * (target_count + 1)
+      local current = beacon_effect(target_count)
+      local new = beacon_effect(target_count + 1)
       local add = new - current
       tally = tally + add
     end
