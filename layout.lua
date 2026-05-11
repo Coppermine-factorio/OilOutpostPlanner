@@ -14,7 +14,7 @@ local function round(x)
 end
 
 local function IsEmpty(t)
-  -- Returns the first value from a table
+  -- Returns true is a table is empty
   for _, _ in pairs(t)
   do
     return false
@@ -1875,58 +1875,56 @@ function layout.Plan(player, player_data, entities)
 
   -- Now pumpjacks, pipes, and beacons are complete, the final step is to add
   -- power poles
-  if power_pole_type == "none"
+  if power_pole_type ~= "none"
   then
-    return
-  end
+    local power_pole_proto = prototypes.entity[power_pole_type]
+    local wire_reach = power_pole_proto.get_max_wire_distance(power_pole_quality)
+    local supply_distance = power_pole_proto.get_supply_area_distance(power_pole_quality)
+    local power_pole_cbox = power_pole_proto.collision_box
+    local power_pole_size = math.ceil(
+      power_pole_cbox.right_bottom.x - power_pole_cbox.left_top.x)
 
-  local power_pole_proto = prototypes.entity[power_pole_type]
-  local wire_reach = power_pole_proto.get_max_wire_distance(power_pole_quality)
-  local supply_distance = power_pole_proto.get_supply_area_distance(power_pole_quality)
-  local power_pole_cbox = power_pole_proto.collision_box
-  local power_pole_size = math.ceil(
-    power_pole_cbox.right_bottom.x - power_pole_cbox.left_top.x)
-
-  result = FindPowerPolePositions{
-    bounds=bounds,
-    targets={
-      {
-        poss=pumpjack_positions,
-        radius=pumpjack_radius
+    result = FindPowerPolePositions{
+      bounds=bounds,
+      targets={
+        {
+          poss=pumpjack_positions,
+          radius=pumpjack_radius
+        },
+        {
+          poss=beacon_poss,
+          radius=beacon_radius
+        },
       },
-      {
-        poss=beacon_poss,
-        radius=beacon_radius
-      },
-    },
-    forbidden=forbidden_points,
-    wire_reach=wire_reach,
-    supply_distance=supply_distance,
-    size=power_pole_size,
-    debug=player.print,
-    debug_entity_name=power_pole_type,
-    --debug_viz_surface=surface,
-  }
-
-  if result == nil
-  then
-    player.print({"oil-outpost-planner.msg_pole_layout_failed"})
-    return
-  end
-
-  pole_poss = result.pole_poss
-
-  for _, pole_pos in pairs(pole_poss)
-  do
-    local ghost = ForceGhostAt{
-      surface=surface,
-      proto=power_pole_proto,
-      position=pole_pos,
-      quality=power_pole_quality,
-      player=player,
+      forbidden=forbidden_points,
+      wire_reach=wire_reach,
+      supply_distance=supply_distance,
+      size=power_pole_size,
       debug=player.print,
+      debug_entity_name=power_pole_type,
+      --debug_viz_surface=surface,
     }
-    table.insert(ghosts, ghost)
+
+    if result == nil
+    then
+      player.print({"oil-outpost-planner.msg_pole_layout_failed"})
+      return
+    end
+
+    pole_poss = result.pole_poss
+
+    for _, pole_pos in pairs(pole_poss)
+    do
+      local ghost = ForceGhostAt{
+        surface=surface,
+        proto=power_pole_proto,
+        position=pole_pos,
+        quality=power_pole_quality,
+        player=player,
+        debug=player.print,
+      }
+      table.insert(ghosts, ghost)
+    end
   end
 
   local setting = player.mod_settings["oil-outpost-planner-interface-with-module-inserter-ex"]
