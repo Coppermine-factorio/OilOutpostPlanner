@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.10
+Date: 26.06.2026
+  Bugfixes:
+    - Don't show pumpjack entities which are hidden, not blueprintable, or not player creatable.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.9
 Date: 11.05.2026
   Bugfixes:
