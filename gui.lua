@@ -302,7 +302,13 @@ local function update_pumpjack_selection(player_data)
   }
 
   for _, miner_proto in pairs(all_miners) do
-    if blacklist[miner_proto.name] then goto skip_miner end
+    if miner_proto.hidden
+      or miner_proto.has_flag("not-blueprintable")
+      or not miner_proto.has_flag("player-creation")
+      or blacklist[miner_proto.name]
+    then
+      goto skip_miner
+    end
 
     local output_fluidboxes = {}
     for _, fluidbox in pairs(miner_proto.fluidbox_prototypes)
@@ -406,11 +412,11 @@ local function update_entity_selection(args)
     if entity_proto.hidden
       or entity_proto.has_flag("not-blueprintable")
       or not entity_proto.has_flag("player-creation")
+      or blacklist[entity_proto.name]
     then
       goto skip_entity_proto
     end
 
-    if blacklist[entity_proto.name] then goto skip_entity_proto end
     local cbox = entity_proto.collision_box
     local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
     if max_size ~= nil and size > max_size
